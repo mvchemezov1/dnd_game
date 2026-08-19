@@ -11,6 +11,13 @@
 		<RootNamespace>dnd_game.Tests</RootNamespace>
 	</PropertyGroup>
 
+	<!-- ✨ ДОБАВИТЬ ЭТОТ БЛОК ✨ -->
+	<ItemGroup>
+		<Compile Remove="loadtest\**\*.cs" />
+		<EmbeddedResource Remove="loadtest\**\*" />
+		<None Remove="loadtest\**\*" />
+	</ItemGroup>
+
 	<ItemGroup>
 		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
 		<PackageReference Include="xunit" Version="2.9.3" />
@@ -23,12 +30,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<!-- Правильный относительный путь -->
 		<ProjectReference Include="..\dnd_game.csproj" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <Folder Include="loadtest\obj\Debug\" />
 	</ItemGroup>
 
 </Project>

@@ -1,4 +1,4 @@
-// tests/loadtest/Program.cs
+﻿// tests/loadtest/Program.cs
 using dnd_game.Domain.Aggregates;
 using dnd_game.infrastructure.event_store;
 using dnd_game.Infrastructure.Coordination;
@@ -13,7 +13,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 
-namespace dnd_game.Tests.loadTest;
+namespace dnd_game.loadTest;
 
 public static class Program
 {

@@ -7,8 +7,6 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<AssemblyName>dnd_game.LoadTest</AssemblyName>
 		<RootNamespace>dnd_game.LoadTest</RootNamespace>
-		<!-- tests/loadtest/dnd_game.LoadTest.csproj -->
-    <StartupObject>dnd_game.Tests.loadTest.Runmain</StartupObject>
 	</PropertyGroup>
 
 	<ItemGroup>
