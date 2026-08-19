@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - develop
-      - main
+      - master
 
 jobs:
   deploy:
@@ -36,7 +36,7 @@ jobs:
           if [[ "${{ github.ref_name }}" == "develop" ]]; then
             echo "environment=staging" >> $GITHUB_OUTPUT
             echo "host=staging-server.example.com" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref_name }}" == "main" ]]; then
+          elif [[ "${{ github.ref_name }}" == "master" ]]; then
             echo "environment=production" >> $GITHUB_OUTPUT
             echo "host=prod-server.example.com" >> $GITHUB_OUTPUT
           fi
