@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Бой (DM)</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/custom.css">
+</head>
+<body class="theme-transition">
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">⚔️ DnD Game</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item" id="nav"></li>
+                    <li class="nav-item">
+                        <span id="themeTogglePlaceholder"></span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h1>⚔️ Бой (панель ДМ)</h1>
+        <div class="row mb-3">
+            <div class="col">
+                <label for="combatId" class="form-label">ID боя</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="combatId" placeholder="00000000-0000-0000-0000-000000000000">
+                    <button class="btn btn-primary" id="loadBtn">Загрузить статус</button>
+                </div>
+                <div id="error" class="text-danger mt-1"></div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">Статус</div>
+                    <div class="card-body" id="status">— не загружено —</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">Информация</div>
+                    <div class="card-body">
+                        <p><strong>Текущий ход:</strong> <span id="currentParticipant">—</span></p>
+                        <p><strong>Раунд:</strong> <span id="round">—</span></p>
+                        <p><strong>Бой активен:</strong> <span id="active">—</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Порядок ходов</span>
+                <button class="btn btn-sm btn-outline-secondary" id="refreshTurnOrderBtn">Обновить</button>
+            </div>
+            <div class="card-body">
+                <ol id="turnOrder"></ol>
+            </div>
+        </div>
+
+        <hr>
+        <h2>🛠️ Панель ДМ</h2>
+
+        <div class="accordion" id="dmAccordion">
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCreate">
+                        Создать / завершить бой
+                    </button>
+                </h2>
+                <div id="collapseCreate" class="accordion-collapse collapse show" data-bs-parent="#dmAccordion">
+                    <div class="accordion-body">
+                        <div class="mb-2">
+                            <label class="form-label">Участники (ID через запятую)</label>
+                            <input type="text" class="form-control" id="startParticipants" placeholder="guid1,guid2,guid3">
+                        </div>
+                        <button class="btn btn-success me-2" id="startCombatBtn">Начать бой</button>
+                        <button class="btn btn-danger" id="endCombatBtn">Завершить бой</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseInitiative">
+                        Участники и инициатива
+                    </button>
+                </h2>
+                <div id="collapseInitiative" class="accordion-collapse collapse" data-bs-parent="#dmAccordion">
+                    <div class="accordion-body">
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <label class="form-label">ID участника</label>
+                                <input type="text" class="form-control" id="participantId" placeholder="ID">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Инициатива</label>
+                                <input type="number" class="form-control" id="initiativeRoll" value="10">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Мод. Ловкости</label>
+                                <input type="number" class="form-control" id="dexModifier" value="0">
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button class="btn btn-primary w-100" id="rollInitiativeBtn">Бросить</button>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <label class="form-label">ID участника</label>
+                                <input type="text" class="form-control" id="addParticipantId" placeholder="ID">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Инициатива</label>
+                                <input type="number" class="form-control" id="addInitiative" value="10">
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end">
+                                <button class="btn btn-success w-100" id="addParticipantBtn">Добавить</button>
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button class="btn btn-danger w-100" id="removeParticipantBtn">Удалить</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseRounds">
+                        Раунды и ходы
+                    </button>
+                </h2>
+                <div id="collapseRounds" class="accordion-collapse collapse" data-bs-parent="#dmAccordion">
+                    <div class="accordion-body">
+                        <button class="btn btn-primary me-2" id="startRoundBtn">Начать раунд</button>
+                        <button class="btn btn-warning me-2" id="nextTurnBtn">Следующий ход</button>
+                        <button class="btn btn-secondary" id="endRoundBtn">Завершить раунд</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseDamage">
+                        Урон / лечение
+                    </button>
+                </h2>
+                <div id="collapseDamage" class="accordion-collapse collapse" data-bs-parent="#dmAccordion">
+                    <div class="accordion-body">
+                        <div class="row g-2">
+                            <div class="col-md-3">
+                                <label class="form-label">Источник (ID)</label>
+                                <input type="text" class="form-control" id="sourceId" placeholder="ID источника">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Цель (ID)</label>
+                                <input type="text" class="form-control" id="targetId" placeholder="ID цели">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Урон</label>
+                                <input type="number" class="form-control" id="damageAmount" value="1">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Тип</label>
+                                <input type="text" class="form-control" id="damageType" value="Slashing">
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button class="btn btn-danger w-100" id="dealDamageBtn">Нанести</button>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <label class="form-label">Цель (ID)</label>
+                                <input type="text" class="form-control" id="healTargetId" placeholder="ID цели">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Лечение</label>
+                                <input type="number" class="form-control" id="healAmount" value="1">
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end">
+                                <button class="btn btn-success w-100" id="healBtn">Исцелить</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseConditions">
+                        Состояния
+                    </button>
+                </h2>
+                <div id="collapseConditions" class="accordion-collapse collapse" data-bs-parent="#dmAccordion">
+                    <div class="accordion-body">
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <label class="form-label">Цель (ID)</label>
+                                <input type="text" class="form-control" id="conditionTargetId" placeholder="ID цели">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Состояние</label>
+                                <input type="text" class="form-control" id="conditionType" value="Poisoned">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Длительность</label>
+                                <input type="number" class="form-control" id="conditionDuration" value="1">
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end">
+                                <button class="btn btn-warning me-2" id="applyConditionBtn">Наложить</button>
+                                <button class="btn btn-secondary" id="removeConditionBtn">Снять</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="dmResult" class="mt-3"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/ui-helpers.js"></script>
+    <script src="/js/auth.js"></script>
+
+    <script>
+                requireRole(['GameMaster', 'Admin']);
+                renderNav('nav');
+
+                function getCombatId() {
+                    const id = document.getElementById('combatId').value.trim();
+                    if (!id) document.getElementById('error').textContent = '⚠️ Введите ID боя';
+                    return id;
+                }
+
+                function showDmResult(text, ok = true) {
+                    const el = document.getElementById('dmResult');
+                    el.innerHTML = `<div class="alert alert-${ok ? 'success' : 'danger'}">${ok ? '✅' : '❌'} ${text}</div>`;
+                    if (!ok) showToast(text, 'error');
+                }
+
+                async function apiPost(path, body) {
+                    const id = getCombatId();
+                    if (!id) throw new Error('Нет ID боя');
+                    const res = await authFetch(`/api/combat/${id}${path}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                    });
+                    if (!res.ok) throw new Error(`Статус ${res.status}: ${await res.text()}`);
+                    return res;
+                }
+
+                async function apiDelete(path, body) {
+                    const id = getCombatId();
+                    if (!id) throw new Error('Нет ID боя');
+                    const opts = { method: 'DELETE', headers: authHeaders() };
+                    if (body) {
+                        opts.headers = { ...authHeaders(), 'Content-Type': 'application/json' };
+                        opts.body = JSON.stringify(body);
+                    }
+                    const res = await authFetch(`/api/combat/${id}${path}`, opts);
+                    if (!res.ok) throw new Error(`Статус ${res.status}: ${await res.text()}`);
+                    return res;
+                }
+
+                async function loadStatus() {
+                    const id = getCombatId();
+                    if (!id) return;
+                    document.getElementById('error').textContent = '';
+                    try {
+                        const res = await authFetch(`/api/combat/${id}`);
+                        if (!res.ok) throw new Error(`Статус ${res.status}`);
+                        const status = await res.json();
+                        document.getElementById('status').innerHTML = `<pre>${JSON.stringify(status, null, 2)}</pre>`;
+                    } catch (err) {
+                        document.getElementById('status').innerHTML = `<div class="alert alert-danger">❌ ${err.message}</div>`;
+                        showToast(err.message, 'error');
+                    }
+                    try {
+                        const res = await authFetch(`/api/combat/${id}/current`);
+                        document.getElementById('currentParticipant').textContent = res.ok ? JSON.stringify(await res.json()) : '—';
+                    } catch { document.getElementById('currentParticipant').textContent = '—'; }
+                    try {
+                        const res = await authFetch(`/api/combat/${id}/round`);
+                        document.getElementById('round').textContent = res.ok ? JSON.stringify(await res.json()) : '—';
+                    } catch { document.getElementById('round').textContent = '—'; }
+                    try {
+                        const res = await authFetch(`/api/combat/${id}/active`);
+                        document.getElementById('active').textContent = res.ok ? JSON.stringify(await res.json()) : '—';
+                    } catch { document.getElementById('active').textContent = '—'; }
+                    await loadTurnOrder();
+                }
+
+                async function loadTurnOrder() {
+                    const id = getCombatId();
+                    if (!id) return;
+                    try {
+                        const res = await authFetch(`/api/combat/${id}/turn-order`);
+                        if (!res.ok) throw new Error(`Статус ${res.status}`);
+                        const order = await res.json();
+                        const list = document.getElementById('turnOrder');
+                        list.innerHTML = Array.isArray(order) && order.length
+                            ? order.map(p => `<li>${JSON.stringify(p)}</li>`).join('')
+                            : '<li>Нет данных</li>';
+                    } catch (err) {
+                        document.getElementById('turnOrder').innerHTML = `<li class="text-danger">❌ ${err.message}</li>`;
+                        showToast(err.message, 'error');
+                    }
+                }
+
+                // ---------- Создание / завершение боя ----------
+                document.getElementById('startCombatBtn').addEventListener('click', async () => {
+                    try {
+                        const id = getCombatId();
+                        if (!id) return;
+                        const participants = document.getElementById('startParticipants').value
+                            .split(',').map(s => s.trim()).filter(Boolean);
+                        const res = await authFetch('/api/combat', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ combatId: id, participants })
+                        });
+                        if (!res.ok) throw new Error(`Статус ${res.status}: ${await res.text()}`);
+                        showDmResult('Бой начат', true);
+                        await loadStatus();
+                    } catch (err) { showDmResult(err.message, false); }
+                });
+
+                document.getElementById('endCombatBtn').addEventListener('click', async () => {
+                    try {
+                        const id = getCombatId();
+                        if (!id) return;
+                        const res = await authFetch(`/api/combat/${id}`, { method: 'DELETE' });
+                        if (!res.ok) throw new Error(`Статус ${res.status}`);
+                        showDmResult('Бой завершён', true);
+                        await loadStatus();
+                    } catch (err) { showDmResult(err.message, false); }
+                });
+
+                // ---------- Инициатива / участники ----------
+                document.getElementById('rollInitiativeBtn').addEventListener('click', async () => {
+                    try {
+                        await apiPost('/initiative', {
+                            participantId: document.getElementById('participantId').value.trim(),
+                            initiativeRoll: parseInt(document.getElementById('initiativeRoll').value) || 0,
+                            dexterityModifier: parseInt(document.getElementById('dexModifier').value) || 0
+                        });
+                        showDmResult('Инициатива брошена', true);
+                        await loadStatus();
+                    } catch (err) { showDmResult(err.message, false); }
+                });
+
+                document.getElementById('addParticipantBtn').addEventListener('click', async () => {
+                    try {
+                        await apiPost('/participants', {
+                            participantId: document.getElementById('addParticipantId').value.trim(),
+                            initiative: parseInt(document.getElementById('addInitiative').value) || 0
+                        });
+                        showDmResult('Участник добавлен', true);
+                        await loadStatus();
+                    } catch (err) { showDmResult(err.message, false); }
+                });
+
+                document.getElementById('removeParticipantBtn').addEventListener('click', async () => {
+                    try {
+                        const id = getCombatId();
+                        const participantId = document.getElementById('addParticipantId').value.trim();
+                        if (!id || !participantId) throw new Error('Укажите ID боя и участника');
+                        const res = await authFetch(`/api/combat/${id}/participants/${participantId}`, { method: 'DELETE' });
+                        if (!res.ok) throw new Error(`Статус ${res.status}`);
+                        showDmResult('Участник удалён', true);
+                        await loadStatus();
+                    } catch (err) { showDmResult(err.message, false); }
+                });
+
+                // ---------- Раунды / ходы ----------
+                document.getElementById('startRoundBtn').addEventListener('click', async () => {
+                    try { await apiPost('/rounds', {}); showDmResult('Раунд начат', true); await loadStatus(); }
+                    catch (err) { showDmResult(err.message, false); }
+                });
+                document.getElementById('nextTurnBtn').addEventListener('click', async () => {
+                    try { await apiPost('/turns/next', {}); showDmResult('Ход передан', true); await loadStatus(); }
+                    catch (err) { showDmResult(err.message, false); }
+                });
+                document.getElementById('endRoundBtn').addEventListener('click', async () => {
+                    try { await apiPost('/rounds/end', {}); showDmResult('Раунд завершён', true); await loadStatus(); }
+                    catch (err) { showDmResult(err.message, false); }
+                });
+
+                // ---------- Урон / лечение ----------
+                document.getElementById('dealDamageBtn').addEventListener('click', async () => {
+                    try {
+                        await apiPost('/damage', {
+                            sourceParticipantId: document.getElementById('sourceId').value.trim(),
+                            targetParticipantId: document.getElementById('targetId').value.trim(),
+                            damageAmount: parseInt(document.getElementById('damageAmount').value) || 0,
+                            damageType: document.getElementById('damageType').value.trim()
+                        });
+                        showDmResult('Урон нанесён', true);
+                        await loadStatus();
+                    } catch (err) { showDmResult(err.message, false); }
+                });
+
+                document.getElementById('healBtn').addEventListener('click', async () => {
+                    try {
+                        await apiPost('/heal', {
+                            sourceParticipantId: document.getElementById('sourceId').value.trim(),
+                            targetParticipantId: document.getElementById('healTargetId').value.trim(),
+                            healingAmount: parseInt(document.getElementById('healAmount').value) || 0
+                        });
+                        showDmResult('Цель исцелена', true);
+                        await loadStatus();
+                    } catch (err) { showDmResult(err.message, false); }
+                });
+
+                // ---------- Состояния ----------
+                document.getElementById('applyConditionBtn').addEventListener('click', async () => {
+                    try {
+                        await apiPost('/conditions', {
+                            targetParticipantId: document.getElementById('conditionTargetId').value.trim(),
+                            conditionType: document.getElementById('conditionType').value.trim(),
+                            durationRounds: parseInt(document.getElementById('conditionDuration').value) || 0
+                        });
+                        showDmResult('Состояние наложено', true);
+                        await loadStatus();
+                    } catch (err) { showDmResult(err.message, false); }
+                });
+
+                document.getElementById('removeConditionBtn').addEventListener('click', async () => {
+                    try {
+                        await apiDelete('/conditions', {
+                            targetParticipantId: document.getElementById('conditionTargetId').value.trim(),
+                            conditionType: document.getElementById('conditionType').value.trim()
+                        });
+                        showDmResult('Состояние снято', true);
+                        await loadStatus();
+                    } catch (err) { showDmResult(err.message, false); }
+                });
+
+                document.getElementById('loadBtn').addEventListener('click', loadStatus);
+                document.getElementById('refreshTurnOrderBtn').addEventListener('click', loadTurnOrder);
+    </script>
+</body>
+</html>

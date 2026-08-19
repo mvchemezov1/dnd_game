@@ -1,0 +1,1 @@
+ALTER TABLE character_read_model ADD COLUMN IF NOT EXISTS gold INT NOT NULL DEFAULT 0;

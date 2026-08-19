@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Диалог</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/custom.css">
+</head>
+<body class="theme-transition">
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">⚔️ DnD Game</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item" id="nav"></li>
+                    <li class="nav-item">
+                        <span id="themeTogglePlaceholder"></span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h1>💬 Диалог</h1>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label for="dialogueId" class="form-label">ID диалога</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="dialogueId" placeholder="00000000-0000-0000-0000-000000000000">
+                    <button class="btn btn-primary" id="loadStateBtn">Загрузить состояние</button>
+                </div>
+                <div id="error" class="text-danger mt-1"></div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">Текст NPC</div>
+                    <div class="card-body" id="npcText">—</div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">Варианты ответов</div>
+                    <div class="card-body">
+                        <ul class="list-group" id="optionsList"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">Начать новый диалог</div>
+            <div class="card-body">
+                <div class="row g-2">
+                    <div class="col-md-3">
+                        <label class="form-label">ID NPC</label>
+                        <input type="text" class="form-control" id="npcId" placeholder="ID NPC">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">ID персонажа</label>
+                        <input type="text" class="form-control" id="charId" placeholder="ID персонажа">
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button class="btn btn-success w-100" id="startDialogBtn">Начать</button>
+                    </div>
+                </div>
+                <div id="startResult" class="mt-2"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/ui-helpers.js"></script>
+    <script src="/js/auth.js"></script>
+
+    <script>
+                requireRole(['Player', 'GameMaster', 'Admin']);
+                renderNav('nav');
+
+                function getDialogueId() {
+                    const id = document.getElementById('dialogueId').value.trim();
+                    if (!id) document.getElementById('error').textContent = '⚠️ Введите ID диалога';
+                    return id;
+                }
+
+                async function loadState() {
+                    const id = getDialogueId();
+                    if (!id) return;
+                    document.getElementById('error').textContent = '';
+                    try {
+                        const res = await authFetch(`/api/dialog/state/${id}`);
+                        if (!res.ok) throw new Error(`Статус ${res.status}`);
+                        const node = await res.json();
+                        document.getElementById('npcText').textContent = node.npcText || '(нет текста)';
+                        const list = document.getElementById('optionsList');
+                        if (!node.options || node.options.length === 0) {
+                            list.innerHTML = '<li class="list-group-item">Нет вариантов</li>';
+                            return;
+                        }
+                        list.innerHTML = node.options.map(o => `
+                            <li class="list-group-item">
+                                <button class="btn btn-outline-primary w-100" onclick="selectOption('${o.optionId}')">${o.playerText}</button>
+                            </li>
+                        `).join('');
+                    } catch (err) {
+                        document.getElementById('npcText').innerHTML = `<div class="alert alert-danger">❌ ${err.message}</div>`;
+                        document.getElementById('optionsList').innerHTML = '';
+                        showToast(err.message, 'error');
+                    }
+                }
+
+                window.selectOption = async function(optionId) {
+                    const dialogueId = getDialogueId();
+                    if (!dialogueId) return;
+                    try {
+                        const res = await authFetch('/api/dialog/option', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ dialogueId, optionId })
+                        });
+                        if (!res.ok) throw new Error(`Статус ${res.status}`);
+                        await loadState();
+                    } catch (err) {
+                        showToast(err.message, 'error');
+                    }
+                };
+
+                document.getElementById('startDialogBtn').addEventListener('click', async () => {
+                    const dialogueId = document.getElementById('dialogueId').value.trim();
+                    const npcId = document.getElementById('npcId').value.trim();
+                    const charId = document.getElementById('charId').value.trim();
+                    const result = document.getElementById('startResult');
+                    if (!dialogueId || !npcId || !charId) {
+                        result.innerHTML = '<div class="alert alert-warning">⚠️ Заполните все поля</div>';
+                        return;
+                    }
+                    try {
+                        const res = await authFetch('/api/dialog/start', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ dialogueId, npcId, characterId: charId })
+                        });
+                        if (!res.ok) throw new Error(`Статус ${res.status}`);
+                        result.innerHTML = '<div class="alert alert-success">✅ Диалог начат</div>';
+                        showToast('Диалог начат', 'success');
+                        await loadState();
+                    } catch (err) {
+                        result.innerHTML = `<div class="alert alert-danger">❌ ${err.message}</div>`;
+                        showToast(err.message, 'error');
+                    }
+                });
+
+                document.getElementById('loadStateBtn').addEventListener('click', loadState);
+    </script>
+</body>
+</html>

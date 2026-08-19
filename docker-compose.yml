@@ -1,0 +1,42 @@
+# docker-compose.yml
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: dnd_game
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - dnd_game_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d dnd_game"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Порт БД наружу не пробрасываем — доступ только из сети docker-compose.
+    # Если нужен прямой доступ с хоста (например, через DBeaver), раскомментируйте:
+    # ports:
+    #   - "5432:5432"
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Двойное подчёркивание "__" — способ ASP.NET Core адресовать вложенный ключ
+      # ConnectionStrings:DefaultConnection через переменную окружения.
+      # Host=db — имя сервиса в docker-compose, а не localhost.
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=dnd_game;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}"
+      APP_URL: "http://0.0.0.0:5000"
+      CORS__AllowedOrigins__0: "http://localhost:3000"
+      CORS__AllowedOrigins__1: "https://my-frontend.com"
+      ConnectionStrings__RabbitMQ: "amqp://guest:guest@rabbitmq:5672"
+      # Секрет для подписи JWT. Значение по умолчанию годится только для локальной разработки —
+      # переопределите TOKEN_SECRET в .env или окружении CI/prod настоящим случайным значением.
+      Token__Secret: "${TOKEN_SECRET:-CHANGE_ME_local_dev_only_insecure_9f8e7d6c5b4a3210}"
+    ports:
+      - "5000:5000"
+
+volumes:
+  dnd_game_pgdata:

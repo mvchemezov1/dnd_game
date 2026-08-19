@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DnD Game – Главная</title>
+    <!-- Bootstrap 5 (CSS) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Кастомные стили -->
+    <link rel="stylesheet" href="/css/custom.css">
+    <style>
+        /* Дополнительные стили для этой страницы, если нужно */
+        .hero-section {
+            background: linear-gradient(135deg, #1e293b, #0f172a);
+            color: white;
+            padding: 4rem 0;
+            border-radius: 0 0 2rem 2rem;
+        }
+    </style>
+</head>
+<body class="theme-transition">
+
+    <!-- Навигация -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">⚔️ DnD Game</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <!-- Динамическая навигация из auth.js -->
+                    <li class="nav-item" id="nav"></li>
+                    <!-- Переключатель темы -->
+                    <li class="nav-item">
+                        <span id="themeTogglePlaceholder"></span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Основной контент -->
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="hero-section text-center">
+                    <h1 class="display-4">⚔️ DnD Game</h1>
+                    <p class="lead">Многопользовательская RPG на Event Sourcing + CQRS</p>
+                    <div id="roleBlock" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="mt-5 text-center text-muted">
+        <p>&copy; 2025 DnD Game. Все права защищены.</p>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Общие утилиты UI -->
+    <script src="/js/ui-helpers.js"></script>
+    <!-- Auth модуль -->
+    <script src="/js/auth.js"></script>
+
+    <script>
+                // Инициализация навигации
+                renderNav('nav');
+
+                // Роль блок
+                const roleBlock = document.getElementById('roleBlock');
+                if (isLoggedIn()) {
+                    const role = getRole();
+                    roleBlock.innerHTML = `
+                        <p>Вы вошли как <b>${getUsername() ?? '?'}</b> (роль: <b>${role}</b>).</p>
+                        <a href="${homeForRole(role)}" class="btn btn-primary">Перейти в свой раздел →</a>
+                    `;
+                } else {
+                    roleBlock.innerHTML = `
+                        <p>Используйте <a href="/login.html" class="btn btn-outline-light btn-sm">вход</a> или
+                        <a href="/register.html" class="btn btn-outline-light btn-sm">регистрацию</a>, чтобы начать.</p>
+                    `;
+                }
+
+                // Показываем приветственное уведомление
+                document.addEventListener('DOMContentLoaded', () => {
+                    if (isLoggedIn()) {
+                        showToast(`Добро пожаловать, ${getUsername() || 'игрок'}!`, 'success');
+                    }
+                });
+    </script>
+</body>
+</html>

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Крафт</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/custom.css">
+</head>
+<body class="theme-transition">
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">⚔️ DnD Game</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item" id="nav"></li>
+                    <li class="nav-item">
+                        <span id="themeTogglePlaceholder"></span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h1>🔧 Крафт</h1>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label for="characterId" class="form-label">ID персонажа</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="characterId" placeholder="00000000-0000-0000-0000-000000000000">
+                    <button class="btn btn-primary" id="loadRecipesBtn">Загрузить рецепты</button>
+                </div>
+                <div id="error" class="text-danger mt-1"></div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">Доступные рецепты</div>
+                    <div class="card-body">
+                        <ul class="list-group" id="recipeList"></ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>Активные процессы</span>
+                        <button class="btn btn-sm btn-outline-secondary" id="refreshProcessesBtn">Обновить</button>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-group" id="processList"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">Начать крафт</div>
+            <div class="card-body">
+                <div class="row g-2">
+                    <div class="col-md-8">
+                        <label class="form-label">ID рецепта</label>
+                        <input type="text" class="form-control" id="recipeIdInput" placeholder="00000000-0000-0000-0000-000000000000">
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button class="btn btn-success w-100" id="startCraftBtn">Начать</button>
+                    </div>
+                </div>
+                <div id="craftResult" class="mt-2"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/ui-helpers.js"></script>
+    <script src="/js/auth.js"></script>
+
+    <script>
+                requireRole(['Player', 'GameMaster', 'Admin']);
+                renderNav('nav');
+
+                function getCharacterId() {
+                    const id = document.getElementById('characterId').value.trim();
+                    if (!id) document.getElementById('error').textContent = '⚠️ Введите ID персонажа';
+                    return id;
+                }
+
+                async function loadRecipes() {
+                    const charId = getCharacterId();
+                    if (!charId) return;
+                    document.getElementById('error').textContent = '';
+                    try {
+                        const res = await authFetch('/api/crafting/recipes?characterId=' + charId);
+                        if (!res.ok) throw new Error(`Статус ${res.status}`);
+                        const recipes = await res.json();
+                        const list = document.getElementById('recipeList');
+                        if (!Array.isArray(recipes) || recipes.length === 0) {
+                            list.innerHTML = '<li class="list-group-item">Нет доступных рецептов</li>';
+                            return;
+                        }
+                        list.innerHTML = recipes.map(r => `
+                            <li class="list-group-item">
+                                <b>${r.name}</b> (ID: ${r.recipeId})
+                                <br>Время: ${r.craftingTimeHours} ч, Стоимость: ${r.goldCost} зол.
+                                <br>Компоненты: ${r.components?.map(c => `${c.name} x${c.quantity}`).join(', ') || 'нет'}
+                                <button class="btn btn-sm btn-outline-primary mt-1" onclick="document.getElementById('recipeIdInput').value='${r.recipeId}'">Выбрать</button>
+                            </li>
+                        `).join('');
+                    } catch (err) {
+                        document.getElementById('recipeList').innerHTML = `<li class="list-group-item text-danger">❌ ${err.message}</li>`;
+                        showToast(err.message, 'error');
+                    }
+                }
+
+                async function loadProcesses() {
+                    const charId = getCharacterId();
+                    if (!charId) return;
+                    try {
+                        const res = await authFetch(`/api/crafting/processes?characterId=${charId}`);
+                        if (!res.ok) throw new Error(`Статус ${res.status}`);
+                        const processes = await res.json();
+                        const list = document.getElementById('processList');
+                        if (!Array.isArray(processes) || processes.length === 0) {
+                            list.innerHTML = '<li class="list-group-item">Нет активных процессов</li>';
+                            return;
+                        }
+                        list.innerHTML = processes.map(p => `
+                            <li class="list-group-item">
+                                Процесс ID: ${p.processId}<br>
+                                Рецепт: ${p.recipeId}<br>
+                                Прогресс: ${p.elapsedHours}/${p.totalHours} ч
+                                <button class="btn btn-sm btn-danger mt-1" onclick="cancelCraft('${p.processId}')">Отменить</button>
+                            </li>
+                        `).join('');
+                    } catch (err) {
+                        document.getElementById('processList').innerHTML = `<li class="list-group-item text-danger">❌ ${err.message}</li>`;
+                        showToast(err.message, 'error');
+                    }
+                }
+
+                window.cancelCraft = async function(processId) {
+                    if (!confirm('Отменить крафт? Половина золота будет возвращена.')) return;
+                    try {
+                        const res = await authFetch('/api/crafting/cancel', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ processId })
+                        });
+                        if (!res.ok) throw new Error(`Статус ${res.status}`);
+                        showToast('Крафт отменён', 'warning');
+                        await loadProcesses();
+                    } catch (err) {
+                        showToast(err.message, 'error');
+                    }
+                };
+
+                document.getElementById('startCraftBtn').addEventListener('click', async () => {
+                    const charId = getCharacterId();
+                    const recipeId = document.getElementById('recipeIdInput').value.trim();
+                    const result = document.getElementById('craftResult');
+                    if (!charId || !recipeId) {
+                        result.innerHTML = '<div class="alert alert-warning">⚠️ Укажите ID персонажа и рецепта</div>';
+                        return;
+                    }
+                    try {
+                        const res = await authFetch('/api/crafting/start', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ characterId: charId, recipeId })
+                        });
+                        if (!res.ok) throw new Error(`Статус ${res.status}`);
+                        const data = await res.json();
+                        result.innerHTML = `<div class="alert alert-success">✅ Крафт начат! Процесс ID: ${data.processId}</div>`;
+                        showToast('Крафт начат', 'success');
+                        await loadProcesses();
+                    } catch (err) {
+                        result.innerHTML = `<div class="alert alert-danger">❌ ${err.message}</div>`;
+                        showToast(err.message, 'error');
+                    }
+                });
+
+                document.getElementById('loadRecipesBtn').addEventListener('click', loadRecipes);
+                document.getElementById('refreshProcessesBtn').addEventListener('click', loadProcesses);
+    </script>
+</body>
+</html>

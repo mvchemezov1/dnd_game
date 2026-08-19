@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Кампания (DM)</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/custom.css">
+</head>
+<body class="theme-transition">
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">⚔️ DnD Game</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item" id="nav"></li>
+                    <li class="nav-item">
+                        <span id="themeTogglePlaceholder"></span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h1>📜 Кампания (DM)</h1>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label for="campaignId" class="form-label">ID кампании</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="campaignId" placeholder="00000000-0000-0000-0000-000000000000">
+                    <button class="btn btn-primary" id="loadBtn">Загрузить</button>
+                </div>
+                <div id="error" class="text-danger mt-1"></div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">Состояние кампании</div>
+                    <div class="card-body" id="campaignState">— не загружено —</div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>Квесты</span>
+                        <div>
+                            <select class="form-select form-select-sm d-inline-block w-auto" id="statusFilter">
+                                <option value="">Все</option>
+                                <option value="Active">Активные</option>
+                                <option value="Completed">Завершённые</option>
+                                <option value="Failed">Проваленные</option>
+                            </select>
+                            <button class="btn btn-sm btn-outline-secondary" id="refreshQuestsBtn">Обновить</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-group" id="questList"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">Управление квестом (ДМ)</div>
+            <div class="card-body">
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label class="form-label">ID квеста</label>
+                        <input type="text" class="form-control" id="questIdInput" placeholder="00000000-0000-0000-0000-000000000000">
+                    </div>
+                    <div class="col-md-6 d-flex align-items-end gap-2">
+                        <button class="btn btn-success" id="acceptBtn">Принять</button>
+                        <button class="btn btn-primary" id="completeBtn">Завершить успешно</button>
+                        <button class="btn btn-danger" id="failBtn">Провалить</button>
+                    </div>
+                </div>
+                <div id="questActionResult" class="mt-2"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/ui-helpers.js"></script>
+    <script src="/js/auth.js"></script>
+
+    <script>
+                requireRole(['GameMaster', 'Admin']);
+                renderNav('nav');
+
+                function getCampaignId() {
+                    const id = document.getElementById('campaignId').value.trim();
+                    if (!id) document.getElementById('error').textContent = '⚠️ Введите ID кампании';
+                    return id;
+                }
+
+                async function loadCampaignState() {
+                    const id = getCampaignId();
+                    if (!id) return;
+                    document.getElementById('error').textContent = '';
+                    try {
+                        const res = await authFetch(`/api/campaign/${id}`);
+                        if (!res.ok) throw new Error(`Статус ${res.status}`);
+                        const state = await res.json();
+                        document.getElementById('campaignState').innerHTML = `<pre>${JSON.stringify(state, null, 2)}</pre>`;
+                    } catch (err) {
+                        document.getElementById('campaignState').innerHTML = `<div class="alert alert-danger">❌ ${err.message}</div>`;
+                        showToast(err.message, 'error');
+                    }
+                }
+
+                async function loadQuests() {
+                    const id = getCampaignId();
+                    if (!id) return;
+                    document.getElementById('error').textContent = '';
+                    const status = document.getElementById('statusFilter').value;
+                    const url = status
+                        ? `/api/campaign/${id}/quests?status=${encodeURIComponent(status)}`
+                        : `/api/campaign/${id}/quests`;
+                    try {
+                        const res = await authFetch(url);
+                        if (!res.ok) throw new Error(`Статус ${res.status}`);
+                        const quests = await res.json();
+                        const list = document.getElementById('questList');
+                        if (!Array.isArray(quests) || quests.length === 0) {
+                            list.innerHTML = '<li class="list-group-item">Квестов нет</li>';
+                            return;
+                        }
+                        list.innerHTML = quests.map(q => `
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span>
+                                    <b>${q.title ?? q.name ?? q.questId ?? '(без имени)'}</b>
+                                    <span class="badge bg-secondary ms-2">${q.status ?? '?'}</span>
+                                    <br><small>ID: ${q.questId ?? q.id ?? '?'}</small>
+                                </span>
+                                <button class="btn btn-sm btn-outline-primary" onclick="document.getElementById('questIdInput').value='${q.questId ?? q.id ?? ''}'">Выбрать</button>
+                            </li>
+                        `).join('');
+                    } catch (err) {
+                        document.getElementById('questList').innerHTML = `<li class="list-group-item text-danger">❌ ${err.message}</li>`;
+                        showToast(err.message, 'error');
+                    }
+                }
+
+                async function questAction(action) {
+                    const campaignId = getCampaignId();
+                    const questId = document.getElementById('questIdInput').value.trim();
+                    const result = document.getElementById('questActionResult');
+                    result.innerHTML = '';
+                    if (!campaignId || !questId) {
+                        result.innerHTML = '<div class="alert alert-warning">⚠️ Укажите ID кампании и ID квеста</div>';
+                        return;
+                    }
+                    try {
+                        const res = await authFetch(`/api/campaign/${campaignId}/quests/${questId}/${action}`, { method: 'POST' });
+                        if (!res.ok) throw new Error(`Статус ${res.status}`);
+                        result.innerHTML = `<div class="alert alert-success">✅ Готово (${action})</div>`;
+                        showToast(`Квест ${action}`, 'success');
+                        await loadQuests();
+                    } catch (err) {
+                        result.innerHTML = `<div class="alert alert-danger">❌ ${err.message}</div>`;
+                        showToast(err.message, 'error');
+                    }
+                }
+
+                document.getElementById('loadBtn').addEventListener('click', () => {
+                    loadCampaignState();
+                    loadQuests();
+                });
+                document.getElementById('refreshQuestsBtn').addEventListener('click', loadQuests);
+                document.getElementById('acceptBtn').addEventListener('click', () => questAction('accept'));
+                document.getElementById('completeBtn').addEventListener('click', () => questAction('complete'));
+                document.getElementById('failBtn').addEventListener('click', () => questAction('fail'));
+    </script>
+</body>
+</html>

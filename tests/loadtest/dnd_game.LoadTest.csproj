@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net8.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<AssemblyName>dnd_game.LoadTest</AssemblyName>
+		<RootNamespace>dnd_game.LoadTest</RootNamespace>
+		<!-- tests/loadtest/dnd_game.LoadTest.csproj -->
+    <StartupObject>dnd_game.Tests.loadTest.Runmain</StartupObject>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\dnd_game.csproj" />
+		<PackageReference Include="Moq" Version="4.20.72" />
+	</ItemGroup>
+
+</Project>

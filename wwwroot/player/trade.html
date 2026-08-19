@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Торговля</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/custom.css">
+</head>
+<body class="theme-transition">
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">⚔️ DnD Game</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item" id="nav"></li>
+                    <li class="nav-item">
+                        <span id="themeTogglePlaceholder"></span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h1>🤝 Торговля</h1>
+        <div class="card">
+            <div class="card-header">Создать предложение</div>
+            <div class="card-body">
+                <div class="row g-2">
+                    <div class="col-md-3">
+                        <label class="form-label">От кого (ID)</label>
+                        <input type="text" class="form-control" id="fromCharId" placeholder="ID персонажа">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Кому (ID)</label>
+                        <input type="text" class="form-control" id="toCharId" placeholder="ID персонажа">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Предлагаемые предметы (JSON)</label>
+                        <input type="text" class="form-control" id="offeredItems" placeholder='[{"itemId":"sword1","itemName":"Меч","quantity":1}]'>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Золото</label>
+                        <input type="number" class="form-control" id="offeredGold" value="0">
+                    </div>
+                </div>
+                <div class="row g-2 mt-2">
+                    <div class="col-md-3">
+                        <label class="form-label">Запрашиваемые предметы (JSON)</label>
+                        <input type="text" class="form-control" id="requestedItems" placeholder='[{"itemId":"shield1","itemName":"Щит","quantity":1}]'>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Золото</label>
+                        <input type="number" class="form-control" id="requestedGold" value="0">
+                    </div>
+                    <div class="col-md-6 d-flex align-items-end">
+                        <button class="btn btn-success w-100" id="createOfferBtn">Создать предложение</button>
+                    </div>
+                </div>
+                <div id="offerResult" class="mt-2"></div>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">Активные предложения</div>
+            <div class="card-body">
+                <p class="text-muted">Здесь будет список предложений, полученных через API (эндпоинт GET /api/trade/offers в разработке).</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/ui-helpers.js"></script>
+    <script src="/js/auth.js"></script>
+
+    <script>
+                requireRole(['Player', 'GameMaster', 'Admin']);
+                renderNav('nav');
+
+                document.getElementById('createOfferBtn').addEventListener('click', async () => {
+                    const from = document.getElementById('fromCharId').value.trim();
+                    const to = document.getElementById('toCharId').value.trim();
+                    let offeredItems, requestedItems;
+                    try {
+                        offeredItems = JSON.parse(document.getElementById('offeredItems').value || '[]');
+                        requestedItems = JSON.parse(document.getElementById('requestedItems').value || '[]');
+                    } catch (e) {
+                        showToast('Неверный JSON', 'error');
+                        return;
+                    }
+                    const offeredGold = parseInt(document.getElementById('offeredGold').value) || 0;
+                    const requestedGold = parseInt(document.getElementById('requestedGold').value) || 0;
+                    const result = document.getElementById('offerResult');
+                    if (!from || !to) {
+                        result.innerHTML = '<div class="alert alert-warning">⚠️ Укажите оба ID персонажей</div>';
+                        return;
+                    }
+                    try {
+                        const res = await authFetch('/api/trade/offer', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ fromCharacterId: from, toCharacterId: to, offeredItems, offeredGold, requestedItems, requestedGold })
+                        });
+                        if (!res.ok) throw new Error(`Статус ${res.status}`);
+                        const data = await res.json();
+                        result.innerHTML = `<div class="alert alert-success">✅ Предложение создано! ID: ${data.offerId}</div>`;
+                        showToast('Предложение создано', 'success');
+                    } catch (err) {
+                        result.innerHTML = `<div class="alert alert-danger">❌ ${err.message}</div>`;
+                        showToast(err.message, 'error');
+                    }
+                });
+    </script>
+</body>
+</html>

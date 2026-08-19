@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Панель разработчика</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/custom.css">
+</head>
+<body class="theme-transition">
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">⚔️ DnD Game</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item" id="nav"></li>
+                    <li class="nav-item">
+                        <span id="themeTogglePlaceholder"></span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h1>🛠️ Панель разработчика</h1>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>Health-check</span>
+                        <button class="btn btn-sm btn-outline-secondary" id="refreshHealthBtn">Обновить</button>
+                    </div>
+                    <div class="card-body" id="health">— загрузка —</div>
+                </div>
+
+                <div class="card mt-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>AI-скрипты</span>
+                        <button class="btn btn-sm btn-outline-secondary" id="refreshScriptsBtn">Обновить</button>
+                    </div>
+                    <div class="card-body" id="scripts">— загрузка —</div>
+                </div>
+
+                <div class="card mt-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>Webhook-подписки</span>
+                        <button class="btn btn-sm btn-outline-secondary" id="refreshWebhooksBtn">Обновить</button>
+                    </div>
+                    <div class="card-body" id="webhooks">— загрузка —</div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">Реплей событий агрегата</div>
+                    <div class="card-body">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="aggregateId" placeholder="00000000-0000-0000-0000-000000000000">
+                            <button class="btn btn-primary" id="loadReplayBtn">Загрузить</button>
+                        </div>
+                        <div id="replay" class="mt-2"></div>
+                    </div>
+                </div>
+
+                <div class="card mt-3">
+                    <div class="card-header">Текущая сессия</div>
+                    <div class="card-body" id="sessionInfo"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/ui-helpers.js"></script>
+    <script src="/js/auth.js"></script>
+
+    <script>
+                requireRole(['Admin']);
+                renderNav('nav');
+
+                async function loadJson(url, targetId) {
+                    const el = document.getElementById(targetId);
+                    el.innerHTML = '— загрузка —';
+                    try {
+                        const res = await authFetch(url);
+                        if (!res.ok) throw new Error(`Статус ${res.status}`);
+                        const data = await res.json();
+                        el.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    } catch (err) {
+                        el.innerHTML = `<div class="alert alert-danger">❌ ${err.message}</div>`;
+                        showToast(err.message, 'error');
+                    }
+                }
+
+                function loadHealth() { loadJson('/api/dev/health', 'health'); }
+                function loadScripts() { loadJson('/api/dev/scripts', 'scripts'); }
+                function loadWebhooks() { loadJson('/api/dev/webhooks', 'webhooks'); }
+
+                document.getElementById('refreshHealthBtn').addEventListener('click', loadHealth);
+                document.getElementById('refreshScriptsBtn').addEventListener('click', loadScripts);
+                document.getElementById('refreshWebhooksBtn').addEventListener('click', loadWebhooks);
+
+                document.getElementById('loadReplayBtn').addEventListener('click', () => {
+                    const id = document.getElementById('aggregateId').value.trim();
+                    if (!id) {
+                        document.getElementById('replay').innerHTML = '<div class="alert alert-warning">⚠️ Введите ID агрегата</div>';
+                        return;
+                    }
+                    loadJson(`/api/dev/replay/${id}`, 'replay');
+                });
+
+                // Загрузка при старте
+                loadHealth();
+                loadScripts();
+                loadWebhooks();
+
+                // Информация о сессии
+                document.getElementById('sessionInfo').innerHTML = `<pre>${JSON.stringify(getPayload(), null, 2)}</pre>`;
+    </script>
+</body>
+</html>

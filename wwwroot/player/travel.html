@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Путешествия</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/custom.css">
+</head>
+<body class="theme-transition">
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">⚔️ DnD Game</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item" id="nav"></li>
+                    <li class="nav-item">
+                        <span id="themeTogglePlaceholder"></span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h1>🗺️ Путешествия</h1>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">Быстрое перемещение</div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <label class="form-label">ID персонажа</label>
+                            <input type="text" class="form-control" id="charId" placeholder="ID персонажа">
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-4">
+                                <label class="form-label">X</label>
+                                <input type="number" class="form-control" id="targetX" value="0">
+                            </div>
+                            <div class="col-4">
+                                <label class="form-label">Y</label>
+                                <input type="number" class="form-control" id="targetY" value="0">
+                            </div>
+                            <div class="col-4 d-flex align-items-end">
+                                <button class="btn btn-primary w-100" id="moveBtn">Переместиться</button>
+                            </div>
+                        </div>
+                        <div id="moveResult" class="mt-2"></div>
+                    </div>
+                </div>
+
+                <div class="card mt-3">
+                    <div class="card-header">Dash</div>
+                    <div class="card-body">
+                        <button class="btn btn-warning" id="dashBtn">Использовать Dash</button>
+                        <div id="dashResult" class="mt-2"></div>
+                    </div>
+                </div>
+
+                <div class="card mt-3">
+                    <div class="card-header">Специальное перемещение</div>
+                    <div class="card-body">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label">Тип</label>
+                                <select class="form-select" id="movementType">
+                                    <option value="Climb">Лазание</option>
+                                    <option value="Swim">Плавание</option>
+                                    <option value="Fly">Полет</option>
+                                    <option value="Burrow">Копание</option>
+                                </select>
+                            </div>
+                            <div class="col-4">
+                                <label class="form-label">Дистанция (футы)</label>
+                                <input type="number" class="form-control" id="specialDistance" value="10">
+                            </div>
+                            <div class="col-2 d-flex align-items-end">
+                                <button class="btn btn-info w-100" id="specialMoveBtn">Выполнить</button>
+                            </div>
+                        </div>
+                        <div id="specialResult" class="mt-2"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">Путешествие (глобальная карта)</div>
+                    <div class="card-body">
+                        <p class="text-muted">Эндпоинты /api/travel/journey/start, /journey/end, /journey/day доступны.</p>
+                        <button class="btn btn-success" id="startJourneyBtn">Начать путешествие</button>
+                        <div id="journeyResult" class="mt-2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/ui-helpers.js"></script>
+    <script src="/js/auth.js"></script>
+
+    <script>
+                requireRole(['Player', 'GameMaster', 'Admin']);
+                renderNav('nav');
+
+                function getCharId() {
+                    const id = document.getElementById('charId').value.trim();
+                    if (!id) showToast('Введите ID персонажа', 'warning');
+                    return id;
+                }
+
+                document.getElementById('moveBtn').addEventListener('click', async () => {
+                    const charId = getCharId();
+                    if (!charId) return;
+                    const targetX = parseInt(document.getElementById('targetX').value) || 0;
+                    const targetY = parseInt(document.getElementById('targetY').value) || 0;
+                    const result = document.getElementById('moveResult');
+                    try {
+                        const res = await authFetch('/api/travel/move', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ characterId: charId, targetX, targetY })
+                        });
+                        if (!res.ok) throw new Error(`Статус ${res.status}`);
+                        result.innerHTML = '<div class="alert alert-success">✅ Перемещение выполнено</div>';
+                        showToast('Перемещение выполнено', 'success');
+                    } catch (err) {
+                        result.innerHTML = `<div class="alert alert-danger">❌ ${err.message}</div>`;
+                        showToast(err.message, 'error');
+                    }
+                });
+
+                document.getElementById('dashBtn').addEventListener('click', async () => {
+                    const charId = getCharId();
+                    if (!charId) return;
+                    const result = document.getElementById('dashResult');
+                    try {
+                        const res = await authFetch('/api/travel/dash', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ characterId: charId })
+                        });
+                        if (!res.ok) throw new Error(`Статус ${res.status}`);
+                        result.innerHTML = '<div class="alert alert-success">✅ Dash использован</div>';
+                        showToast('Dash использован', 'success');
+                    } catch (err) {
+                        result.innerHTML = `<div class="alert alert-danger">❌ ${err.message}</div>`;
+                        showToast(err.message, 'error');
+                    }
+                });
+
+                document.getElementById('specialMoveBtn').addEventListener('click', async () => {
+                    const charId = getCharId();
+                    if (!charId) return;
+                    const movementType = document.getElementById('movementType').value;
+                    const distance = parseInt(document.getElementById('specialDistance').value) || 0;
+                    const result = document.getElementById('specialResult');
+                    try {
+                        const res = await authFetch('/api/travel/special-movement', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ characterId: charId, distanceFeet: distance, movementType })
+                        });
+                        if (!res.ok) throw new Error(`Статус ${res.status}`);
+                        result.innerHTML = `<div class="alert alert-success">✅ ${movementType} выполнено на ${distance} футов</div>`;
+                        showToast(`${movementType} выполнено`, 'success');
+                    } catch (err) {
+                        result.innerHTML = `<div class="alert alert-danger">❌ ${err.message}</div>`;
+                        showToast(err.message, 'error');
+                    }
+                });
+
+                document.getElementById('startJourneyBtn').addEventListener('click', async () => {
+                    const partyId = prompt('ID группы (партии):');
+                    const routeId = prompt('ID маршрута:');
+                    if (!partyId || !routeId) return;
+                    try {
+                        const res = await authFetch('/api/travel/journey/start', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ partyId, routeId, pace: 'Normal' })
+                        });
+                        if (!res.ok) throw new Error(`Статус ${res.status}`);
+                        document.getElementById('journeyResult').innerHTML = '<div class="alert alert-success">✅ Путешествие начато</div>';
+                        showToast('Путешествие начато', 'success');
+                    } catch (err) {
+                        document.getElementById('journeyResult').innerHTML = `<div class="alert alert-danger">❌ ${err.message}</div>`;
+                        showToast(err.message, 'error');
+                    }
+                });
+    </script>
+</body>
+</html>

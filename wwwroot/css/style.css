@@ -1,0 +1,42 @@
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  margin: 0;
+  padding: 20px;
+  background: #f5f5f5;
+  color: #222;
+}
+header {
+  background: #2c3e50;
+  color: white;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+header h1 { margin: 0; }
+nav a {
+  color: #ecf0f1;
+  text-decoration: none;
+  margin-right: 15px;
+}
+nav a:hover { text-decoration: underline; }
+main { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+button { background: #3498db; border: none; color: white; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin: 5px 0; }
+button:hover { background: #2980b9; }
+/* Дополнительные стили для кнопок управления */
+button {
+    margin-right: 8px;
+}
+
+#uiStatus {
+    background: #f9f9f9;
+    padding: 12px;
+    border-radius: 6px;
+}
+
+    #uiStatus div {
+        margin: 4px 0;
+    }
+input[type="text"], input[type="password"] { padding: 6px; border: 1px solid #ccc; border-radius: 4px; }
+ul { list-style: none; padding: 0; }
+li { margin: 8px 0; }
+footer { margin-top: 20px; text-align: center; color: #777; }

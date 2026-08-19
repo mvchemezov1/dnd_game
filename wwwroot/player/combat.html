@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Бой</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/custom.css">
+</head>
+<body class="theme-transition">
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">⚔️ DnD Game</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item" id="nav"></li>
+                    <li class="nav-item">
+                        <span id="themeTogglePlaceholder"></span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h1>⚔️ Бой</h1>
+        <div class="row mb-3">
+            <div class="col">
+                <label for="combatId" class="form-label">ID боя</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="combatId" placeholder="00000000-0000-0000-0000-000000000000">
+                    <button class="btn btn-primary" id="loadBtn">Загрузить статус</button>
+                </div>
+                <div id="error" class="text-danger mt-1"></div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">Статус</div>
+                    <div class="card-body" id="status">— не загружено —</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">Информация</div>
+                    <div class="card-body">
+                        <p><strong>Текущий ход:</strong> <span id="currentParticipant">—</span></p>
+                        <p><strong>Раунд:</strong> <span id="round">—</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Порядок ходов</span>
+                <button class="btn btn-sm btn-outline-secondary" id="refreshTurnOrderBtn">Обновить</button>
+            </div>
+            <div class="card-body">
+                <ol id="turnOrder"></ol>
+            </div>
+        </div>
+
+        <hr>
+        <h3>Мой ход</h3>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label for="myParticipantId" class="form-label">ID участника</label>
+                <input type="text" class="form-control" id="myParticipantId" placeholder="ID вашего персонажа в бою">
+            </div>
+        </div>
+
+        <div class="row mt-3">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">Инициатива</div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <label class="form-label">Бросок</label>
+                            <input type="number" class="form-control" id="initiativeRoll" value="10">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Мод. Ловкости</label>
+                            <input type="number" class="form-control" id="dexModifier" value="0">
+                        </div>
+                        <button class="btn btn-primary w-100" id="rollInitiativeBtn">Бросить инициативу</button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">Движение</div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <label class="form-label">Дистанция (футы)</label>
+                            <input type="number" class="form-control" id="moveDistance" value="30">
+                        </div>
+                        <button class="btn btn-primary w-100" id="moveBtn">Двигаться</button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">Стандартное действие</div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <label class="form-label">Тип</label>
+                            <input type="text" class="form-control" id="stdActionType" value="Attack">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Цель (ID)</label>
+                            <input type="text" class="form-control" id="stdTargetId" placeholder="ID цели">
+                        </div>
+                        <button class="btn btn-primary w-100" id="standardActionBtn">Выполнить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">Бонусное действие</div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <label class="form-label">Тип</label>
+                            <input type="text" class="form-control" id="bonusActionType" value="OffHandAttack">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Цель (ID)</label>
+                            <input type="text" class="form-control" id="bonusTargetId" placeholder="ID цели">
+                        </div>
+                        <button class="btn btn-primary w-100" id="bonusActionBtn">Выполнить</button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">Результат</div>
+                    <div class="card-body" id="actionResult"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/ui-helpers.js"></script>
+    <script src="/js/auth.js"></script>
+
+    <script>
+                requireRole(['Player', 'GameMaster', 'Admin']);
+                renderNav('nav');
+
+                function getCombatId() {
+                    const id = document.getElementById('combatId').value.trim();
+                    if (!id) document.getElementById('error').textContent = '⚠️ Введите ID боя';
+                    return id;
+                }
+
+                function showResult(text, ok = true) {
+                    const el = document.getElementById('actionResult');
+                    el.innerHTML = `<div class="alert alert-${ok ? 'success' : 'danger'}">${ok ? '✅' : '❌'} ${text}</div>`;
+                    if (!ok) showToast(text, 'error');
+                }
+
+                async function apiPost(path, body) {
+                    const id = getCombatId();
+                    if (!id) throw new Error('Нет ID боя');
+                    const res = await authFetch(`/api/combat/${id}${path}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                    });
+                    if (!res.ok) throw new Error(`Статус ${res.status}: ${await res.text()}`);
+                    return res;
+                }
+
+                async function loadStatus() {
+                    const id = getCombatId();
+                    if (!id) return;
+                    document.getElementById('error').textContent = '';
+                    try {
+                        const res = await authFetch(`/api/combat/${id}`);
+                        if (!res.ok) throw new Error(`Статус ${res.status}`);
+                        const status = await res.json();
+                        document.getElementById('status').innerHTML = `<pre>${JSON.stringify(status, null, 2)}</pre>`;
+                    } catch (err) {
+                        document.getElementById('status').innerHTML = `<div class="alert alert-danger">❌ ${err.message}</div>`;
+                        showToast(err.message, 'error');
+                    }
+                    try {
+                        const res = await authFetch(`/api/combat/${id}/current`);
+                        document.getElementById('currentParticipant').textContent = res.ok ? JSON.stringify(await res.json()) : '—';
+                    } catch { document.getElementById('currentParticipant').textContent = '—'; }
+                    try {
+                        const res = await authFetch(`/api/combat/${id}/round`);
+                        document.getElementById('round').textContent = res.ok ? JSON.stringify(await res.json()) : '—';
+                    } catch { document.getElementById('round').textContent = '—'; }
+                    await loadTurnOrder();
+                }
+
+                async function loadTurnOrder() {
+                    const id = getCombatId();
+                    if (!id) return;
+                    try {
+                        const res = await authFetch(`/api/combat/${id}/turn-order`);
+                        if (!res.ok) throw new Error(`Статус ${res.status}`);
+                        const order = await res.json();
+                        const list = document.getElementById('turnOrder');
+                        list.innerHTML = Array.isArray(order) && order.length
+                            ? order.map(p => `<li>${JSON.stringify(p)}</li>`).join('')
+                            : '<li>Нет данных</li>';
+                    } catch (err) {
+                        document.getElementById('turnOrder').innerHTML = `<li class="text-danger">❌ ${err.message}</li>`;
+                        showToast(err.message, 'error');
+                    }
+                }
+
+                document.getElementById('rollInitiativeBtn').addEventListener('click', async () => {
+                    try {
+                        await apiPost('/initiative', {
+                            participantId: document.getElementById('myParticipantId').value.trim(),
+                            initiativeRoll: parseInt(document.getElementById('initiativeRoll').value) || 0,
+                            dexterityModifier: parseInt(document.getElementById('dexModifier').value) || 0
+                        });
+                        showResult('Инициатива брошена', true);
+                        await loadStatus();
+                    } catch (err) { showResult(err.message, false); }
+                });
+
+                document.getElementById('moveBtn').addEventListener('click', async () => {
+                    try {
+                        await apiPost('/actions/move', {
+                            participantId: document.getElementById('myParticipantId').value.trim(),
+                            distanceFeet: parseInt(document.getElementById('moveDistance').value) || 0
+                        });
+                        showResult('Движение выполнено', true);
+                        await loadStatus();
+                    } catch (err) { showResult(err.message, false); }
+                });
+
+                document.getElementById('standardActionBtn').addEventListener('click', async () => {
+                    try {
+                        await apiPost('/actions/standard', {
+                            participantId: document.getElementById('myParticipantId').value.trim(),
+                            actionType: document.getElementById('stdActionType').value.trim(),
+                            targetId: document.getElementById('stdTargetId').value.trim() || null,
+                            actionData: null
+                        });
+                        showResult('Действие выполнено', true);
+                        await loadStatus();
+                    } catch (err) { showResult(err.message, false); }
+                });
+
+                document.getElementById('bonusActionBtn').addEventListener('click', async () => {
+                    try {
+                        await apiPost('/actions/bonus', {
+                            participantId: document.getElementById('myParticipantId').value.trim(),
+                            actionType: document.getElementById('bonusActionType').value.trim(),
+                            targetId: document.getElementById('bonusTargetId').value.trim() || null,
+                            actionData: null
+                        });
+                        showResult('Бонусное действие выполнено', true);
+                        await loadStatus();
+                    } catch (err) { showResult(err.message, false); }
+                });
+
+                document.getElementById('loadBtn').addEventListener('click', loadStatus);
+                document.getElementById('refreshTurnOrderBtn').addEventListener('click', loadTurnOrder);
+    </script>
+</body>
+</html>

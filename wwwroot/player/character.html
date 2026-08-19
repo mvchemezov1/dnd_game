@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Персонаж</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/custom.css">
+</head>
+<body class="theme-transition">
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">⚔️ DnD Game</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item" id="nav"></li>
+                    <li class="nav-item">
+                        <span id="themeTogglePlaceholder"></span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <p><a href="/player/characters.html" class="btn btn-outline-secondary">&larr; Назад к списку</a></p>
+        <div id="characterInfo" class="card p-4"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/ui-helpers.js"></script>
+    <script src="/js/auth.js"></script>
+
+    <script>
+                requireRole(['Player', 'GameMaster', 'Admin']);
+                renderNav('nav');
+
+                const params = new URLSearchParams(window.location.search);
+                const id = params.get('id');
+
+                async function loadCharacter() {
+                    if (!id) return;
+                    try {
+                        const res = await authFetch(`/api/characters/${id}`);
+                        if (!res.ok) throw new Error('Не удалось загрузить');
+                        const c = await res.json();
+                        document.getElementById('characterInfo').innerHTML = `
+                            <h2>${c.name}</h2>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>Класс:</strong> ${c.class || 'не выбран'}</p>
+                                    <p><strong>Уровень:</strong> ${c.level}</p>
+                                    <p><strong>Опыт:</strong> ${c.experience}</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>HP:</strong> ${c.hitPoints}/${c.maxHitPoints}</p>
+                                    <p><strong>Сила:</strong> ${c.strength || '?'}</p>
+                                    <p><strong>Ловкость:</strong> ${c.dexterity || '?'}</p>
+                                </div>
+                            </div>
+                        `;
+                    } catch (err) {
+                        document.getElementById('characterInfo').innerHTML = `<div class="alert alert-danger">❌ ${err.message}</div>`;
+                        showToast(err.message, 'error');
+                    }
+                }
+
+                loadCharacter();
+    </script>
+</body>
+</html>
