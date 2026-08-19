@@ -1,4 +1,5 @@
 // application/event_handlers/notification_handler.cs
+using dnd_game.application.event_handlers;
 using dnd_game.Domain.Events;
 using Microsoft.Extensions.Logging;
 

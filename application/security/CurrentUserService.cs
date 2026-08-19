@@ -5,17 +5,32 @@ using dnd_game.application.security;
 
 namespace dnd_game.Application.Security
 {
+    /// <summary>
+    /// Сервис для получения информации о текущем аутентифицированном пользователе.
+    /// Извлекает идентификатор пользователя из контекста HTTP-запроса (claims).
+    /// </summary>
+    /// <remarks>
+    /// Используется в слое безопасности для авторизации и персонализации данных.
+    /// Предполагается, что вызывающий код гарантирует наличие аутентифицированного пользователя,
+    /// поэтому метод <see cref="GetCurrentUserId"/> выбрасывает исключение при его отсутствии.
+    /// </remarks>
     public class CurrentUserService(IHttpContextAccessor httpContextAccessor) : ICurrentUserService
     {
         private readonly IHttpContextAccessor _httpContextAccessor = httpContextAccessor;
 
         /// <summary>
-        /// Возвращает Id текущего аутентифицированного пользователя.
-        /// Бросает UnauthorizedAccessException, если запрос не аутентифицирован —
-        /// вызывающий код (например, PolicyEnforcer) предполагает, что до его вызова
-        /// пользователь уже прошёл аутентификацию, поэтому "пустого" случая тут не бывает
-        /// в норме, и явная ошибка лучше, чем незаметный NotImplementedException.
+        /// Возвращает идентификатор текущего аутентифицированного пользователя.
         /// </summary>
+        /// <returns>GUID идентификатор пользователя.</returns>
+        /// <exception cref="UnauthorizedAccessException">
+        /// Выбрасывается, если контекст отсутствует, пользователь не аутентифицирован
+        /// или claim <see cref="ClaimTypes.NameIdentifier"/> не содержит корректный GUID.
+        /// </exception>
+        /// <remarks>
+        /// Явная ошибка лучше, чем незаметное некорректное поведение:
+        /// вызывающий код (например, <c>PolicyEnforcer</c>) предполагает, что до его вызова
+        /// пользователь уже прошёл аутентификацию, поэтому "пустого" случая в норме не бывает.
+        /// </remarks>
         public Guid GetCurrentUserId()
         {
             var user = _httpContextAccessor.HttpContext?.User;
@@ -26,9 +41,16 @@ namespace dnd_game.Application.Security
         }
 
         /// <summary>
-        /// Мягкий вариант для мест, где отсутствие пользователя — ожидаемый случай
-        /// (например, опциональная персонализация), а не ошибка.
+        /// Мягкий вариант получения идентификатора текущего пользователя.
+        /// Возвращает <c>null</c>, если пользователь не аутентифицирован или claim отсутствует.
         /// </summary>
+        /// <returns>
+        /// GUID идентификатор пользователя или <c>null</c>, если его невозможно определить.
+        /// </returns>
+        /// <remarks>
+        /// Используется в местах, где отсутствие пользователя — ожидаемый случай
+        /// (например, опциональная персонализация), а не ошибка.
+        /// </remarks>
         public Guid? TryGetCurrentUserId()
         {
             var user = _httpContextAccessor.HttpContext?.User;

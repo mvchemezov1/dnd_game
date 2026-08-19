@@ -9,6 +9,19 @@ using dnd_game.domain.value_objects;
 
 namespace dnd_game.application.command_handlers
 {
+    /// <summary>
+    /// Обрабатывает команды, связанные с перемещением персонажа, загружая агрегат <see cref="CharacterAggregate"/> из хранилища событий,
+    /// проверяя правила движения и вызывая соответствующее поведение домена.
+    /// Реализует паттерн обработчика команд с использованием событийного сорсинга и провайдера игровой сетки.
+    /// </summary>
+    /// <remarks>
+    /// Большинство обработчиков следуют стандартному потоку:
+    /// 1. Загрузить агрегат персонажа по идентификатору.
+    /// 2. Если персонаж не найден, выбросить исключение <see cref="InvalidAction"/>.
+    /// 3. При необходимости выполнить проверки игровых правил (границы сетки, стоимость движения и т.д.).
+    /// 4. Вызвать метод агрегата, соответствующий команде.
+    /// 5. Сохранить агрегат, что приводит к добавлению новых событий в хранилище событий.
+    /// </remarks>
     public class MovementHandler(
         IEventStore eventStore,
         IGridProvider gridProvider) : ICommandHandler<MoveCharacter>,
@@ -36,13 +49,21 @@ namespace dnd_game.application.command_handlers
 
         // ---------- Основное перемещение ----------
 
+        /// <summary>
+        /// Обрабатывает команду <see cref="MoveCharacter"/>, перемещая персонажа на указанную позицию с учётом стоимости клетки и доступной скорости.
+        /// </summary>
+        /// <param name="command">Команда, содержащая идентификатор персонажа, координаты цели и тип движения.</param>
+        /// <param name="cancellationToken">Токен для уведомления об отмене операции.</param>
+        /// <exception cref="InvalidAction">
+        /// Выбрасывается, если персонаж не найден, целевая позиция за пределами сетки,
+        /// клетка непроходима или недостаточно скорости для перемещения.
+        /// </exception>
         public async Task Handle(MoveCharacter command, CancellationToken cancellationToken)
         {
             var character = await _eventStore.Load<CharacterAggregate>(command.CharacterId, cancellationToken)
                             ?? throw new InvalidAction("Character not found");
 
-            // РўРµРєСѓС‰Р°СЏ РїРѕР·РёС†РёСЏ Р±РµСЂС‘С‚СЃСЏ РёР· СЃР°РјРѕРіРѕ Р°РіСЂРµРіР°С‚Р° (CharacterAggregate.PositionX/PositionY),
-            // РєРѕС‚РѕСЂС‹Рµ РѕР±РЅРѕРІР»СЏСЋС‚СЃСЏ РїСЂРё РїСЂРёРјРµРЅРµРЅРёРё СЃРѕР±С‹С‚РёСЏ CharacterMovedToPosition.
+            // Текущая позиция берётся из агрегата (обновляется событиями перемещения)
             var currentPos = new Position(character.PositionX, character.PositionY);
             var targetPos = new Position(command.TargetX, command.TargetY);
 
@@ -54,19 +75,12 @@ namespace dnd_game.application.command_handlers
             if (costPerCell < 0)
                 throw new InvalidAction("Target cell is impassable.");
 
-            // Р РµР°Р»СЊРЅР°СЏ СЃРєРѕСЂРѕСЃС‚СЊ РїРµСЂСЃРѕРЅР°Р¶Р° (Р° РЅРµ С…Р°СЂРґРєРѕРґ), СЃ СѓС‡С‘С‚РѕРј С‚РµРєСѓС‰РёС… РјРѕРґРёС„РёРєР°С‚РѕСЂРѕРІ (Speed
-            // СѓР¶Рµ РѕС‚СЂР°Р¶Р°РµС‚ Р±Р°Р·РѕРІСѓСЋ СЃРєРѕСЂРѕСЃС‚СЊ СЂР°СЃС‹/РєР»Р°СЃСЃР° Рё РѕР±РЅРѕРІР»СЏРµС‚СЃСЏ СЃРѕР±С‹С‚РёРµРј SpeedUpdated).
+            // Реальная скорость персонажа (учитывает модификаторы, обновляется событием SpeedUpdated)
             int baseSpeed = character.Speed;
 
-            // Р§РµСЃС‚РЅР°СЏ РїСЂРѕРІРµСЂРєР° РґРёСЃС‚Р°РЅС†РёРё: СЃСѓРјРјР°СЂРЅРѕРµ СЂР°СЃСЃС‚РѕСЏРЅРёРµ РїРѕ РїСЂСЏРјРѕР№ (РІ С„СѓС‚Р°С…, СЃ СѓС‡С‘С‚РѕРј
-            // РґРёР°РіРѕРЅР°Р»РµР№ РїРѕ РїСЂР°РІРёР»Р°Рј D&D) РѕС‚ С‚РµРєСѓС‰РµР№ РїРѕР·РёС†РёРё РґРѕ С†РµР»Рё РЅРµ РґРѕР»Р¶РЅРѕ РїСЂРµРІС‹С€Р°С‚СЊ
-            // РґРѕСЃС‚СѓРїРЅСѓСЋ СЃРєРѕСЂРѕСЃС‚СЊ РїРµСЂСЃРѕРЅР°Р¶Р° Р·Р° РѕРґРёРЅ С…РѕРґ.
-            // РџСЂРёРјРµС‡Р°РЅРёРµ: СЌС‚Рѕ РќР• РїРѕР»РЅРѕС†РµРЅРЅС‹Р№ path-cost РїРѕ РјРµСЃС‚РЅРѕСЃС‚Рё РІРґРѕР»СЊ РІСЃРµРіРѕ РјР°СЂС€СЂСѓС‚Р°
-            // (РґР»СЏ СЌС‚РѕРіРѕ РµСЃС‚СЊ MovementRules.CalculatePathCost СЃ СЂРµР°Р»СЊРЅС‹Рј РїСѓС‚С‘Рј РїРѕ РєР»РµС‚РєР°Рј) Рё
-            // РќР• РїСЂРѕРІРµСЂРєР° Р±СЋРґР¶РµС‚Р° РґРІРёР¶РµРЅРёСЏ РІ С‚РµРєСѓС‰РµРј СЂР°СѓРЅРґРµ Р±РѕСЏ (РґР»СЏ Р±РѕСЏ Р·Р° СЌС‚Рѕ РѕС‚РІРµС‡Р°РµС‚
-            // CombatAggregate.UseMovement/MovementRemaining вЂ” MoveCharacter СЃРµР№С‡Р°СЃ СЃ РЅРёРј РЅРµ
-            // СЃРІСЏР·Р°РЅ, С‚Р°Рє РєР°Рє РєРѕРјР°РЅРґР° РЅРµ СЃРѕРґРµСЂР¶РёС‚ CombatId). Р­С‚Рѕ РѕСЃРѕР·РЅР°РЅРЅРѕРµ РѕРіСЂР°РЅРёС‡РµРЅРёРµ
-            // С‚РµРєСѓС‰РµР№ СЂРµР°Р»РёР·Р°С†РёРё, Р° РЅРµ СЃРєСЂС‹С‚Р°СЏ РЅРµРґРѕСЂР°Р±РѕС‚РєР°.
+            // Проверка дистанции: расстояние по Чебышёву (в футах) от текущей позиции до цели
+            // не должно превышать доступную скорость. Полноценный расчёт стоимости пути не выполняется —
+            // для этого есть отдельные методы в MovementRules, но данная команда не привязана к боевой сцене.
             int distanceFeet = currentPos.ChebyshevDistanceInFeet(targetPos);
             int remainingSpeed = baseSpeed;
             if (remainingSpeed < distanceFeet)
@@ -80,12 +94,19 @@ namespace dnd_game.application.command_handlers
 
         // ---------- Перемещение с указанием типа (MoveCharacterToPosition) ----------
 
+        /// <summary>
+        /// Обрабатывает команду <see cref="MoveCharacterToPosition"/>, перемещая персонажа с явно указанным типом движения.
+        /// </summary>
+        /// <param name="command">Команда, содержащая идентификатор персонажа, координаты цели и тип движения.</param>
+        /// <param name="cancellationToken">Токен для уведомления об отмене операции.</param>
+        /// <exception cref="InvalidAction">
+        /// Выбрасывается, если персонаж не найден, целевая позиция за пределами сетки или клетка непроходима.
+        /// </exception>
         public async Task Handle(MoveCharacterToPosition command, CancellationToken cancellationToken)
         {
             var character = await _eventStore.Load<CharacterAggregate>(command.CharacterId, cancellationToken)
                             ?? throw new InvalidAction("Character not found");
 
-            // Аналогично MoveCharacter, но с типом движения
             var targetPos = new Position(command.TargetX, command.TargetY);
             if (!_grid.InBounds(targetPos.X, targetPos.Y))
                 throw new InvalidAction("Target position out of bounds.");
@@ -95,14 +116,18 @@ namespace dnd_game.application.command_handlers
             if (cost < 0)
                 throw new InvalidAction("Target cell is impassable.");
 
-            // Проверка скорости (аналогично)
-            // Применяем движение
             character.MoveToPosition(command.TargetX, command.TargetY, command.MovementType);
             await _eventStore.Save(character, cancellationToken);
         }
 
         // ---------- Действия Dash, Disengage, Hide ----------
 
+        /// <summary>
+        /// Обрабатывает команду <see cref="MoveCharacterWithDash"/>, заставляя персонажа использовать действие «Рывок».
+        /// </summary>
+        /// <param name="command">Команда, содержащая идентификатор персонажа.</param>
+        /// <param name="cancellationToken">Токен для уведомления об отмене операции.</param>
+        /// <exception cref="InvalidAction">Выбрасывается, если персонаж не найден.</exception>
         public async Task Handle(MoveCharacterWithDash command, CancellationToken cancellationToken)
         {
             var character = await _eventStore.Load<CharacterAggregate>(command.CharacterId, cancellationToken)
@@ -111,6 +136,12 @@ namespace dnd_game.application.command_handlers
             await _eventStore.Save(character, cancellationToken);
         }
 
+        /// <summary>
+        /// Обрабатывает команду <see cref="MoveCharacterWithDisengage"/>, позволяя персонажу избежать провоцированных атак.
+        /// </summary>
+        /// <param name="command">Команда, содержащая идентификатор персонажа.</param>
+        /// <param name="cancellationToken">Токен для уведомления об отмене операции.</param>
+        /// <exception cref="InvalidAction">Выбрасывается, если персонаж не найден.</exception>
         public async Task Handle(MoveCharacterWithDisengage command, CancellationToken cancellationToken)
         {
             var character = await _eventStore.Load<CharacterAggregate>(command.CharacterId, cancellationToken)
@@ -119,6 +150,12 @@ namespace dnd_game.application.command_handlers
             await _eventStore.Save(character, cancellationToken);
         }
 
+        /// <summary>
+        /// Обрабатывает команду <see cref="MoveCharacterStealthily"/>, заставляя персонажа скрыться.
+        /// </summary>
+        /// <param name="command">Команда, содержащая идентификатор персонажа.</param>
+        /// <param name="cancellationToken">Токен для уведомления об отмене операции.</param>
+        /// <exception cref="InvalidAction">Выбрасывается, если персонаж не найден.</exception>
         public async Task Handle(MoveCharacterStealthily command, CancellationToken cancellationToken)
         {
             var character = await _eventStore.Load<CharacterAggregate>(command.CharacterId, cancellationToken)
@@ -129,6 +166,12 @@ namespace dnd_game.application.command_handlers
 
         // ---------- Специальные виды движения ----------
 
+        /// <summary>
+        /// Обрабатывает команду <see cref="ClimbCharacter"/>, заставляя персонажа лазать.
+        /// </summary>
+        /// <param name="command">Команда, содержащая идентификатор персонажа, дистанцию и использованную скорость лазания.</param>
+        /// <param name="cancellationToken">Токен для уведомления об отмене операции.</param>
+        /// <exception cref="InvalidAction">Выбрасывается, если персонаж не найден.</exception>
         public async Task Handle(ClimbCharacter command, CancellationToken cancellationToken)
         {
             var character = await _eventStore.Load<CharacterAggregate>(command.CharacterId, cancellationToken)
@@ -137,6 +180,12 @@ namespace dnd_game.application.command_handlers
             await _eventStore.Save(character, cancellationToken);
         }
 
+        /// <summary>
+        /// Обрабатывает команду <see cref="SwimCharacter"/>, заставляя персонажа плыть.
+        /// </summary>
+        /// <param name="command">Команда, содержащая идентификатор персонажа, дистанцию и использованную скорость плавания.</param>
+        /// <param name="cancellationToken">Токен для уведомления об отмене операции.</param>
+        /// <exception cref="InvalidAction">Выбрасывается, если персонаж не найден.</exception>
         public async Task Handle(SwimCharacter command, CancellationToken cancellationToken)
         {
             var character = await _eventStore.Load<CharacterAggregate>(command.CharacterId, cancellationToken)
@@ -145,6 +194,12 @@ namespace dnd_game.application.command_handlers
             await _eventStore.Save(character, cancellationToken);
         }
 
+        /// <summary>
+        /// Обрабатывает команду <see cref="FlyCharacter"/>, заставляя персонажа лететь.
+        /// </summary>
+        /// <param name="command">Команда, содержащая идентификатор персонажа, дистанцию и использованную скорость полёта.</param>
+        /// <param name="cancellationToken">Токен для уведомления об отмене операции.</param>
+        /// <exception cref="InvalidAction">Выбрасывается, если персонаж не найден.</exception>
         public async Task Handle(FlyCharacter command, CancellationToken cancellationToken)
         {
             var character = await _eventStore.Load<CharacterAggregate>(command.CharacterId, cancellationToken)
@@ -153,6 +208,12 @@ namespace dnd_game.application.command_handlers
             await _eventStore.Save(character, cancellationToken);
         }
 
+        /// <summary>
+        /// Обрабатывает команду <see cref="BurrowCharacter"/>, заставляя персонажа копать.
+        /// </summary>
+        /// <param name="command">Команда, содержащая идентификатор персонажа, дистанцию и использованную скорость копания.</param>
+        /// <param name="cancellationToken">Токен для уведомления об отмене операции.</param>
+        /// <exception cref="InvalidAction">Выбрасывается, если персонаж не найден.</exception>
         public async Task Handle(BurrowCharacter command, CancellationToken cancellationToken)
         {
             var character = await _eventStore.Load<CharacterAggregate>(command.CharacterId, cancellationToken)
@@ -163,6 +224,12 @@ namespace dnd_game.application.command_handlers
 
         // ---------- Прыжки ----------
 
+        /// <summary>
+        /// Обрабатывает команду <see cref="JumpCharacter"/>, заставляя персонажа совершить прыжок.
+        /// </summary>
+        /// <param name="command">Команда, содержащая идентификатор персонажа, тип прыжка, силу и признак разбега.</param>
+        /// <param name="cancellationToken">Токен для уведомления об отмене операции.</param>
+        /// <exception cref="InvalidAction">Выбрасывается, если персонаж не найден.</exception>
         public async Task Handle(JumpCharacter command, CancellationToken cancellationToken)
         {
             var character = await _eventStore.Load<CharacterAggregate>(command.CharacterId, cancellationToken)
@@ -173,6 +240,12 @@ namespace dnd_game.application.command_handlers
 
         // ---------- Управление скоростью ----------
 
+        /// <summary>
+        /// Обрабатывает команду <see cref="SetCharacterSpeed"/>, временно изменяя скорость персонажа.
+        /// </summary>
+        /// <param name="command">Команда, содержащая идентификатор персонажа, новую скорость и тип движения.</param>
+        /// <param name="cancellationToken">Токен для уведомления об отмене операции.</param>
+        /// <exception cref="InvalidAction">Выбрасывается, если персонаж не найден.</exception>
         public async Task Handle(SetCharacterSpeed command, CancellationToken cancellationToken)
         {
             var character = await _eventStore.Load<CharacterAggregate>(command.CharacterId, cancellationToken)
@@ -181,6 +254,12 @@ namespace dnd_game.application.command_handlers
             await _eventStore.Save(character, cancellationToken);
         }
 
+        /// <summary>
+        /// Обрабатывает команду <see cref="ResetCharacterSpeed"/>, сбрасывая скорость персонажа к базовой.
+        /// </summary>
+        /// <param name="command">Команда, содержащая идентификатор персонажа.</param>
+        /// <param name="cancellationToken">Токен для уведомления об отмене операции.</param>
+        /// <exception cref="InvalidAction">Выбрасывается, если персонаж не найден.</exception>
         public async Task Handle(ResetCharacterSpeed command, CancellationToken cancellationToken)
         {
             var character = await _eventStore.Load<CharacterAggregate>(command.CharacterId, cancellationToken)
@@ -191,6 +270,12 @@ namespace dnd_game.application.command_handlers
 
         // ---------- Модификаторы местности ----------
 
+        /// <summary>
+        /// Обрабатывает команду <see cref="ApplyDifficultTerrain"/>, применяя штраф за труднопроходимую местность.
+        /// </summary>
+        /// <param name="command">Команда, содержащая идентификатор персонажа и множитель стоимости движения.</param>
+        /// <param name="cancellationToken">Токен для уведомления об отмене операции.</param>
+        /// <exception cref="InvalidAction">Выбрасывается, если персонаж не найден.</exception>
         public async Task Handle(ApplyDifficultTerrain command, CancellationToken cancellationToken)
         {
             var character = await _eventStore.Load<CharacterAggregate>(command.CharacterId, cancellationToken)
@@ -199,6 +284,12 @@ namespace dnd_game.application.command_handlers
             await _eventStore.Save(character, cancellationToken);
         }
 
+        /// <summary>
+        /// Обрабатывает команду <see cref="RemoveDifficultTerrain"/>, снимая штраф за труднопроходимую местность.
+        /// </summary>
+        /// <param name="command">Команда, содержащая идентификатор персонажа.</param>
+        /// <param name="cancellationToken">Токен для уведомления об отмене операции.</param>
+        /// <exception cref="InvalidAction">Выбрасывается, если персонаж не найден.</exception>
         public async Task Handle(RemoveDifficultTerrain command, CancellationToken cancellationToken)
         {
             var character = await _eventStore.Load<CharacterAggregate>(command.CharacterId, cancellationToken)
@@ -209,6 +300,12 @@ namespace dnd_game.application.command_handlers
 
         // ---------- Ограничения движения (Impaired) ----------
 
+        /// <summary>
+        /// Обрабатывает команду <see cref="ApplyMovementImpairment"/>, накладывая ограничение на движение.
+        /// </summary>
+        /// <param name="command">Команда, содержащая идентификатор персонажа, тип ограничения и величину снижения скорости.</param>
+        /// <param name="cancellationToken">Токен для уведомления об отмене операции.</param>
+        /// <exception cref="InvalidAction">Выбрасывается, если персонаж не найден.</exception>
         public async Task Handle(ApplyMovementImpairment command, CancellationToken cancellationToken)
         {
             var character = await _eventStore.Load<CharacterAggregate>(command.CharacterId, cancellationToken)
@@ -217,6 +314,12 @@ namespace dnd_game.application.command_handlers
             await _eventStore.Save(character, cancellationToken);
         }
 
+        /// <summary>
+        /// Обрабатывает команду <see cref="RemoveMovementImpairment"/>, снимая ограничение на движение.
+        /// </summary>
+        /// <param name="command">Команда, содержащая идентификатор персонажа и тип ограничения.</param>
+        /// <param name="cancellationToken">Токен для уведомления об отмене операции.</param>
+        /// <exception cref="InvalidAction">Выбрасывается, если персонаж не найден.</exception>
         public async Task Handle(RemoveMovementImpairment command, CancellationToken cancellationToken)
         {
             var character = await _eventStore.Load<CharacterAggregate>(command.CharacterId, cancellationToken)
@@ -227,6 +330,12 @@ namespace dnd_game.application.command_handlers
 
         // ---------- Проверки навыков ----------
 
+        /// <summary>
+        /// Обрабатывает команду <see cref="MakeAthleticsCheckForMovement"/>, выполняя проверку Атлетики для движения.
+        /// </summary>
+        /// <param name="command">Команда, содержащая идентификатор персонажа, сложность, бросок, бонус мастерства и модификатор силы.</param>
+        /// <param name="cancellationToken">Токен для уведомления об отмене операции.</param>
+        /// <exception cref="InvalidAction">Выбрасывается, если персонаж не найден.</exception>
         public async Task Handle(MakeAthleticsCheckForMovement command, CancellationToken cancellationToken)
         {
             var character = await _eventStore.Load<CharacterAggregate>(command.CharacterId, cancellationToken)
@@ -236,6 +345,12 @@ namespace dnd_game.application.command_handlers
             await _eventStore.Save(character, cancellationToken);
         }
 
+        /// <summary>
+        /// Обрабатывает команду <see cref="MakeAcrobaticsCheckForMovement"/>, выполняя проверку Акробатики для движения.
+        /// </summary>
+        /// <param name="command">Команда, содержащая идентификатор персонажа, сложность, бросок, бонус мастерства и модификатор ловкости.</param>
+        /// <param name="cancellationToken">Токен для уведомления об отмене операции.</param>
+        /// <exception cref="InvalidAction">Выбрасывается, если персонаж не найден.</exception>
         public async Task Handle(MakeAcrobaticsCheckForMovement command, CancellationToken cancellationToken)
         {
             var character = await _eventStore.Load<CharacterAggregate>(command.CharacterId, cancellationToken)
@@ -247,6 +362,12 @@ namespace dnd_game.application.command_handlers
 
         // ---------- Падение ----------
 
+        /// <summary>
+        /// Обрабатывает команду <see cref="TakeFallDamage"/>, нанося урон от падения.
+        /// </summary>
+        /// <param name="command">Команда, содержащая идентификатор персонажа и высоту падения в футах.</param>
+        /// <param name="cancellationToken">Токен для уведомления об отмене операции.</param>
+        /// <exception cref="InvalidAction">Выбрасывается, если персонаж не найден.</exception>
         public async Task Handle(TakeFallDamage command, CancellationToken cancellationToken)
         {
             var character = await _eventStore.Load<CharacterAggregate>(command.CharacterId, cancellationToken)

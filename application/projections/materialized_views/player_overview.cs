@@ -1,8 +1,9 @@
 // application/projections/materialized_views/player_overview.cs
-namespace dnd_game.Application.Projections.MaterializedViews
+namespace dnd_game.application.projections.materialized_views
 {
     /// <summary>
     /// Обзорная информация об игроке и его персонажах.
+    /// Представляет собой DTO read-модели, используемое для отображения в пользовательском интерфейсе.
     /// </summary>
     public class PlayerOverview
     {
@@ -13,11 +14,12 @@ namespace dnd_game.Application.Projections.MaterializedViews
         public string PlayerName { get; set; } = string.Empty;
 
         /// <summary>Сводка по каждому персонажу, принадлежащему игроку.</summary>
-        public List<CharacterSummary> Characters { get; set; } = new();
+        public List<CharacterSummary> Characters { get; set; } = [];
     }
 
     /// <summary>
     /// Краткая сводка о персонаже для списка персонажей игрока.
+    /// Содержит основные характеристики, необходимые для быстрого ознакомления.
     /// </summary>
     public class CharacterSummary
     {
@@ -79,7 +81,7 @@ namespace dnd_game.Application.Projections.MaterializedViews
         public bool IsStable { get; set; }
 
         /// <summary>Краткое перечисление активных квестов персонажа.</summary>
-        public List<string> ActiveQuestNames { get; set; } = new();
+        public List<string> ActiveQuestNames { get; set; } = [];
 
         /// <summary>Идентификатор текущей кампании, если есть.</summary>
         public Guid? CampaignId { get; set; }

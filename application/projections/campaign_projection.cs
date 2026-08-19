@@ -6,43 +6,93 @@ using System.Collections.Concurrent;
 namespace dnd_game.Application.Projections
 {
     /// <summary>
-    /// Детальная информация о квесте.
+    /// Детальная информация о квесте, используемая в проекции кампании.
+    /// Содержит все данные, необходимые для отображения и отслеживания квеста.
     /// </summary>
     public class QuestInfo
     {
+        /// <summary>Уникальный идентификатор квеста.</summary>
         public Guid QuestId { get; set; }
+
+        /// <summary>Идентификатор кампании, к которой относится квест.</summary>
         public Guid CampaignId { get; set; }
+
+        /// <summary>Название квеста.</summary>
         public string Title { get; set; } = string.Empty;
+
+        /// <summary>Описание квеста.</summary>
         public string Description { get; set; } = string.Empty;
+
+        /// <summary>Текущий статус квеста.</summary>
         public QuestStatus Status { get; set; } = QuestStatus.Active;
+
+        /// <summary>Список целей квеста.</summary>
         public List<QuestObjective> Objectives { get; set; } = new();
+
+        /// <summary>Список наград за выполнение квеста.</summary>
         public List<QuestReward> Rewards { get; set; } = new();
+
+        /// <summary>Дата и время выдачи квеста (UTC).</summary>
         public DateTime IssuedAt { get; set; }
+
+        /// <summary>Дата и время завершения квеста (если выполнен).</summary>
         public DateTime? CompletedAt { get; set; }
     }
 
+    /// <summary>
+    /// Статус квеста.
+    /// </summary>
     public enum QuestStatus
     {
+        /// <summary>Квест активен и выполняется.</summary>
         Active,
+
+        /// <summary>Квест успешно завершён.</summary>
         Completed,
+
+        /// <summary>Квест провален.</summary>
         Failed,
+
+        /// <summary>Квест временно приостановлен.</summary>
         OnHold
     }
 
+    /// <summary>
+    /// Цель (задача) квеста, которую необходимо выполнить.
+    /// </summary>
     public class QuestObjective
     {
+        /// <summary>Описание цели.</summary>
         public string Description { get; set; } = string.Empty;
+
+        /// <summary>Выполнена ли цель.</summary>
         public bool IsCompleted { get; set; }
+
+        /// <summary>Текущий прогресс выполнения (например, количество убитых монстров).</summary>
         public int CurrentProgress { get; set; }
+
+        /// <summary>Необходимый прогресс для завершения цели.</summary>
         public int RequiredProgress { get; set; }
     }
 
+    /// <summary>
+    /// Награда за выполнение квеста.
+    /// </summary>
     public class QuestReward
     {
+        /// <summary>Описание награды.</summary>
         public string Description { get; set; } = string.Empty;
+
+        /// <summary>Количество опыта, получаемое за квест.</summary>
         public int ExperiencePoints { get; set; }
+
+        /// <summary>Список идентификаторов предметов, выдаваемых в качестве награды.</summary>
         public List<string> ItemIds { get; set; } = new();
+
+        /// <summary>Количество золота, получаемое за квест.</summary>
         public int Gold { get; set; }
+
+        /// <summary>Изменение репутации с фракцией (если применимо).</summary>
         public string? FactionReputationChange { get; set; }
     }
 
@@ -51,9 +101,18 @@ namespace dnd_game.Application.Projections
     /// </summary>
     public class FactionState
     {
+        /// <summary>Идентификатор фракции.</summary>
         public string FactionId { get; set; } = string.Empty;
+
+        /// <summary>Название фракции.</summary>
         public string Name { get; set; } = string.Empty;
-        public int Reputation { get; set; } // от -100 (вражда) до +100 (союз)
+
+        /// <summary>Репутация от -100 (вражда) до +100 (союз).</summary>
+        public int Reputation { get; set; }
+
+        /// <summary>
+        /// Текстовое описание отношения фракции к партии, вычисляемое на основе репутации.
+        /// </summary>
         public string Attitude => Reputation switch
         {
             <= -75 => "Враждебное",
@@ -65,38 +124,81 @@ namespace dnd_game.Application.Projections
     }
 
     /// <summary>
-    /// Полное состояние кампании.
+    /// Полное состояние кампании (глобальные данные мира, время, погода, открытые регионы).
     /// </summary>
     public class CampaignState
     {
+        /// <summary>Идентификатор кампании.</summary>
         public Guid CampaignId { get; set; }
+
+        /// <summary>Название кампании.</summary>
         public string CampaignName { get; set; } = string.Empty;
+
+        /// <summary>Текущий акт кампании.</summary>
         public int CurrentAct { get; set; } = 1;
+
+        /// <summary>Текущий игровой день.</summary>
         public int Day { get; set; } = 1;
+
+        /// <summary>Текущий игровой час.</summary>
         public int Hour { get; set; } = 8;
+
+        /// <summary>Текущая игровая минута.</summary>
         public int Minute { get; set; }
+
+        /// <summary>Текущая погода (текстовое описание).</summary>
         public string Weather { get; set; } = "Ясно";
+
+        /// <summary>Список открытых регионов.</summary>
         public List<string> DiscoveredRegions { get; set; } = new();
+
+        /// <summary>Глобальные флаги кампании (ключ-значение).</summary>
         public Dictionary<string, string> GlobalFlags { get; set; } = new();
     }
 
+    /// <summary>
+    /// Проекция кампании, отвечающая за построение read-модели на основе событий предметной области.
+    /// Хранит данные в памяти (в реальном приложении — в базе данных) и предоставляет методы чтения с кешированием.
+    /// </summary>
     public class CampaignProjection
     {
-        // Хранилища данных (в реальном приложении – БД)
+        // ---------- Хранилища данных (в реальном приложении – БД) ----------
+        // Каждое из этих хранилищ содержит часть состояния, необходимую для проекции.
+
+        /// <summary>Сопоставление идентификатора кампании со списком её квестов.</summary>
         private readonly ConcurrentDictionary<Guid, List<QuestInfo>> _campaignQuests = new();
+
+        /// <summary>Сопоставление идентификатора кампании с её глобальным состоянием.</summary>
         private readonly ConcurrentDictionary<Guid, CampaignState> _campaignStates = new();
+
+        /// <summary>Сопоставление идентификатора фракции с её состоянием.</summary>
         private readonly ConcurrentDictionary<string, FactionState> _factions = new();
+
+        /// <summary>Сопоставление идентификатора кампании со списком активных мировых событий.</summary>
         private readonly ConcurrentDictionary<Guid, List<string>> _activeWorldEvents = new();
 
+        /// <summary>Провайдер кеша для ускорения операций чтения.</summary>
         private readonly ICacheProvider _cache;
+
+        /// <summary>Время жизни записей в кеше.</summary>
         private readonly TimeSpan _cacheTtl;
 
+        /// <summary>
+        /// Инициализирует новый экземпляр проекции кампании.
+        /// </summary>
+        /// <param name="cache">Провайдер кеша.</param>
+        /// <param name="cacheTtl">Время жизни кеша; по умолчанию 10 минут.</param>
         public CampaignProjection(ICacheProvider cache, TimeSpan? cacheTtl = null)
         {
             _cache = cache;
             _cacheTtl = cacheTtl ?? TimeSpan.FromMinutes(10);
         }
 
+        /// <summary>
+        /// Инвалидирует кеш, связанный с конкретной кампанией.
+        /// Запускается в фоновом потоке, чтобы не блокировать обработку события.
+        /// </summary>
+        /// <param name="campaignId">Идентификатор кампании, кеш которой нужно сбросить.</param>
         private void InvalidateCache(Guid campaignId)
         {
             _ = Task.Run(async () =>
@@ -107,6 +209,9 @@ namespace dnd_game.Application.Projections
             });
         }
 
+        /// <summary>
+        /// Инвалидирует кеш, связанный со списком всех фракций.
+        /// </summary>
         private void InvalidateFactionCache()
         {
             _ = Task.Run(async () =>
@@ -116,6 +221,11 @@ namespace dnd_game.Application.Projections
         }
 
         // ---------- Обработка событий квестов ----------
+
+        /// <summary>
+        /// Обрабатывает событие создания квеста (<see cref="QuestCreated"/>).
+        /// Добавляет новый квест в хранилище и сбрасывает кеш кампании.
+        /// </summary>
         public void Apply(QuestCreated e)
         {
             var quests = _campaignQuests.GetOrAdd(e.CampaignId, _ => new List<QuestInfo>());
@@ -143,6 +253,10 @@ namespace dnd_game.Application.Projections
             InvalidateCache(e.CampaignId);
         }
 
+        /// <summary>
+        /// Обрабатывает событие принятия квеста (<see cref="QuestAccepted"/>).
+        /// Обновляет статус квеста на активный.
+        /// </summary>
         public void Apply(QuestAccepted e)
         {
             var quests = _campaignQuests.GetOrAdd(e.CampaignId, _ => new List<QuestInfo>());
@@ -154,6 +268,10 @@ namespace dnd_game.Application.Projections
             }
         }
 
+        /// <summary>
+        /// Обрабатывает событие завершения квеста (<see cref="QuestCompleted"/>).
+        /// Устанавливает статус "Завершён" и фиксирует время завершения.
+        /// </summary>
         public void Apply(QuestCompleted e)
         {
             if (_campaignQuests.TryGetValue(e.CampaignId, out var quests))
@@ -168,6 +286,10 @@ namespace dnd_game.Application.Projections
             }
         }
 
+        /// <summary>
+        /// Обрабатывает событие провала квеста (<see cref="QuestFailed"/>).
+        /// Устанавливает статус "Провален".
+        /// </summary>
         public void Apply(QuestFailed e)
         {
             if (_campaignQuests.TryGetValue(e.CampaignId, out var quests))
@@ -181,6 +303,10 @@ namespace dnd_game.Application.Projections
             }
         }
 
+        /// <summary>
+        /// Обрабатывает событие обновления цели квеста (<see cref="QuestObjectiveUpdated"/>).
+        /// Обновляет прогресс и статус конкретной цели.
+        /// </summary>
         public void Apply(QuestObjectiveUpdated e)
         {
             if (_campaignQuests.TryGetValue(e.CampaignId, out var quests))
@@ -196,12 +322,21 @@ namespace dnd_game.Application.Projections
             }
         }
 
+        /// <summary>
+        /// Обрабатывает событие получения награды за квест (<see cref="QuestRewardClaimed"/>).
+        /// В текущей реализации не выполняет действий, но может быть расширено для отслеживания выданных наград.
+        /// </summary>
         public void Apply(QuestRewardClaimed e)
         {
             // можно пометить награду как выданную, если требуется отслеживание
         }
 
         // ---------- Обработка событий фракций ----------
+
+        /// <summary>
+        /// Обрабатывает событие обнаружения фракции (<see cref="FactionDiscovered"/>).
+        /// Добавляет новую фракцию с нулевой репутацией, если её ещё нет.
+        /// </summary>
         public void Apply(FactionDiscovered e)
         {
             _factions.GetOrAdd(e.FactionId, _ => new FactionState
@@ -213,6 +348,10 @@ namespace dnd_game.Application.Projections
             InvalidateFactionCache();
         }
 
+        /// <summary>
+        /// Обрабатывает событие изменения репутации с фракцией (<see cref="FactionReputationChanged"/>).
+        /// Обновляет репутацию, ограничивая её диапазоном [-100, 100].
+        /// </summary>
         public void Apply(FactionReputationChanged e)
         {
             if (_factions.TryGetValue(e.FactionId, out var faction))
@@ -223,6 +362,11 @@ namespace dnd_game.Application.Projections
         }
 
         // ---------- Обработка глобального состояния мира ----------
+
+        /// <summary>
+        /// Обрабатывает событие создания кампании (<see cref="CampaignCreated"/>).
+        /// Инициализирует состояние кампании.
+        /// </summary>
         public void Apply(CampaignCreated e)
         {
             _campaignStates.TryAdd(e.CampaignId, new CampaignState
@@ -233,6 +377,10 @@ namespace dnd_game.Application.Projections
             InvalidateCache(e.CampaignId);
         }
 
+        /// <summary>
+        /// Обрабатывает событие продвижения игрового времени (<see cref="GameTimeAdvanced"/>).
+        /// Обновляет минуты, часы и дни с учётом переноса.
+        /// </summary>
         public void Apply(GameTimeAdvanced e)
         {
             if (_campaignStates.TryGetValue(e.CampaignId, out var state))
@@ -244,6 +392,9 @@ namespace dnd_game.Application.Projections
             }
         }
 
+        /// <summary>
+        /// Обрабатывает событие смены погоды (<see cref="WeatherChanged"/>).
+        /// </summary>
         public void Apply(WeatherChanged e)
         {
             if (_campaignStates.TryGetValue(e.CampaignId, out var state))
@@ -253,6 +404,10 @@ namespace dnd_game.Application.Projections
             }
         }
 
+        /// <summary>
+        /// Обрабатывает событие открытия региона (<see cref="RegionDiscovered"/>).
+        /// Добавляет регион в список открытых, если его там ещё нет.
+        /// </summary>
         public void Apply(RegionDiscovered e)
         {
             if (_campaignStates.TryGetValue(e.CampaignId, out var state))
@@ -263,6 +418,10 @@ namespace dnd_game.Application.Projections
             }
         }
 
+        /// <summary>
+        /// Обрабатывает событие установки глобального флага (<see cref="GlobalFlagSet"/>).
+        /// Сохраняет или обновляет флаг в состоянии кампании.
+        /// </summary>
         public void Apply(GlobalFlagSet e)
         {
             if (_campaignStates.TryGetValue(e.CampaignId, out var state))
@@ -272,6 +431,9 @@ namespace dnd_game.Application.Projections
             }
         }
 
+        /// <summary>
+        /// Обрабатывает событие удаления глобального флага (<see cref="GlobalFlagRemoved"/>).
+        /// </summary>
         public void Apply(GlobalFlagRemoved e)
         {
             if (_campaignStates.TryGetValue(e.CampaignId, out var state))
@@ -281,6 +443,10 @@ namespace dnd_game.Application.Projections
             }
         }
 
+        /// <summary>
+        /// Обрабатывает событие активации мирового события (<see cref="WorldEventTriggered"/>).
+        /// Добавляет событие в список активных, если его там нет.
+        /// </summary>
         public void Apply(WorldEventTriggered e)
         {
             var events = _activeWorldEvents.GetOrAdd(e.CampaignId, _ => new List<string>());
@@ -290,6 +456,13 @@ namespace dnd_game.Application.Projections
         }
 
         // ---------- Методы чтения проекции (с кешем) ----------
+
+        /// <summary>
+        /// Получает список идентификаторов активных квестов кампании.
+        /// Использует кеширование для ускорения повторных запросов.
+        /// </summary>
+        /// <param name="campaignId">Идентификатор кампании.</param>
+        /// <returns>Список идентификаторов активных квестов.</returns>
         public async Task<List<Guid>> GetActiveQuestIds(Guid campaignId)
         {
             var cacheKey = $"campaign:activeQuests:{campaignId}";
@@ -306,6 +479,13 @@ namespace dnd_game.Application.Projections
             return new List<Guid>();
         }
 
+        /// <summary>
+        /// Получает список квестов кампании с возможностью фильтрации по статусу.
+        /// Без фильтра результат кешируется; при наличии фильтра кеш не используется.
+        /// </summary>
+        /// <param name="campaignId">Идентификатор кампании.</param>
+        /// <param name="statusFilter">Необязательный фильтр по статусу квеста.</param>
+        /// <returns>Список квестов, соответствующих фильтру (или все, если фильтр отсутствует).</returns>
         public async Task<List<QuestInfo>> GetQuests(Guid campaignId, QuestStatus? statusFilter = null)
         {
             var cacheKey = $"campaign:quests:{campaignId}";
@@ -327,15 +507,26 @@ namespace dnd_game.Application.Projections
             return new List<QuestInfo>();
         }
 
+        /// <summary>
+        /// Получает детальную информацию о конкретном квесте.
+        /// Кеширование не применяется, так как метод используется редко.
+        /// </summary>
+        /// <param name="campaignId">Идентификатор кампании.</param>
+        /// <param name="questId">Идентификатор квеста.</param>
+        /// <returns>Объект <see cref="QuestInfo"/> или null, если квест не найден.</returns>
         public async Task<QuestInfo?> GetQuestDetails(Guid campaignId, Guid questId)
         {
-            // Кешируем отдельные квесты? Можно не кешировать, или кешировать с ключом
-            // Но для простоты оставим без кеша, т.к. этот метод используется редко.
             if (_campaignQuests.TryGetValue(campaignId, out var quests))
                 return quests.FirstOrDefault(q => q.QuestId == questId);
             return null;
         }
 
+        /// <summary>
+        /// Получает глобальное состояние кампании.
+        /// Использует кеширование для ускорения повторных запросов.
+        /// </summary>
+        /// <param name="campaignId">Идентификатор кампании.</param>
+        /// <returns>Объект <see cref="CampaignState"/> или null, если кампания не найдена.</returns>
         public async Task<CampaignState?> GetCampaignState(Guid campaignId)
         {
             var cacheKey = $"campaign:{campaignId}";
@@ -349,6 +540,12 @@ namespace dnd_game.Application.Projections
             return state;
         }
 
+        /// <summary>
+        /// Получает состояние фракции по её идентификатору.
+        /// Использует кеширование.
+        /// </summary>
+        /// <param name="factionId">Идентификатор фракции.</param>
+        /// <returns>Объект <see cref="FactionState"/> или null, если фракция не найдена.</returns>
         public async Task<FactionState?> GetFaction(string factionId)
         {
             var cacheKey = $"campaign:faction:{factionId}";
@@ -362,6 +559,11 @@ namespace dnd_game.Application.Projections
             return faction;
         }
 
+        /// <summary>
+        /// Получает список всех известных фракций.
+        /// Использует кеширование.
+        /// </summary>
+        /// <returns>Список состояний фракций.</returns>
         public async Task<List<FactionState>> GetAllFactions()
         {
             const string cacheKey = "campaign:factions:all";
@@ -374,6 +576,12 @@ namespace dnd_game.Application.Projections
             return list;
         }
 
+        /// <summary>
+        /// Получает список активных мировых событий кампании.
+        /// Использует кеширование.
+        /// </summary>
+        /// <param name="campaignId">Идентификатор кампании.</param>
+        /// <returns>Список названий активных событий.</returns>
         public async Task<List<string>> GetActiveWorldEvents(Guid campaignId)
         {
             var cacheKey = $"campaign:worldEvents:{campaignId}";

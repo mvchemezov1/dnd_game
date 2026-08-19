@@ -1,7 +1,6 @@
 // infrastructure/message_bus/rabbitmq_bus.cs
 using dnd_game.Domain.Commands;
 using dnd_game.Domain.Events;
-using dnd_game.Application.EventHandlers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
@@ -10,6 +9,7 @@ using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
 using dnd_game.infrastructure.message_bus;
+using dnd_game.application.event_handlers;
 
 namespace dnd_game.Infrastructure.MessageBus
 {

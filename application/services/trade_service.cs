@@ -10,70 +10,153 @@ namespace dnd_game.Application.Services
 
     /// <summary>
     /// Предмет, участвующий в торговой сделке.
+    /// Содержит информацию о товаре, его цене и редкости.
     /// </summary>
     public class TradeItem
     {
+        /// <summary>Идентификатор предмета (уникальный строковый код).</summary>
         public string ItemId { get; set; } = string.Empty;
+
+        /// <summary>Название предмета для отображения.</summary>
         public string ItemName { get; set; } = string.Empty;
+
+        /// <summary>Количество единиц предмета.</summary>
         public int Quantity { get; set; }
-        public int BasePriceGold { get; set; }          // базовая цена за единицу (по PHB/DMG)
+
+        /// <summary>Базовая цена за единицу в золотых монетах (по PHB/DMG).</summary>
+        public int BasePriceGold { get; set; }
+
+        /// <summary>Является ли предмет магическим.</summary>
         public bool IsMagical { get; set; }
-        public string Rarity { get; set; } = "Common";  // Common, Uncommon, Rare, Very Rare, Legendary
+
+        /// <summary>Редкость предмета: Common, Uncommon, Rare, Very Rare, Legendary.</summary>
+        public string Rarity { get; set; } = "Common";
     }
 
     /// <summary>
-    /// Предложение обмена (для торговли между игроками).
+    /// Предложение обмена между двумя персонажами (торговля между игроками).
+    /// Содержит список предлагаемых и запрашиваемых предметов, а также золото.
     /// </summary>
     public class TradeOffer
     {
+        /// <summary>Уникальный идентификатор предложения.</summary>
         public Guid OfferId { get; set; }
+
+        /// <summary>Идентификатор персонажа, который делает предложение.</summary>
         public Guid FromCharacterId { get; set; }
+
+        /// <summary>Идентификатор персонажа, которому адресовано предложение.</summary>
         public Guid ToCharacterId { get; set; }
+
+        /// <summary>Список предметов, предлагаемых первой стороной.</summary>
         public List<TradeItem> OfferedItems { get; set; } = [];
+
+        /// <summary>Количество золота, предлагаемое первой стороной.</summary>
         public int OfferedGold { get; set; }
+
+        /// <summary>Список предметов, запрашиваемых первой стороной.</summary>
         public List<TradeItem> RequestedItems { get; set; } = [];
+
+        /// <summary>Количество золота, запрашиваемое первой стороной.</summary>
         public int RequestedGold { get; set; }
+
+        /// <summary>Время создания предложения (UTC).</summary>
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        /// <summary>Текущий статус предложения.</summary>
         public TradeOfferStatus Status { get; set; } = TradeOfferStatus.Pending;
     }
 
+    /// <summary>
+    /// Статус торгового предложения между игроками.
+    /// </summary>
     public enum TradeOfferStatus
     {
+        /// <summary>Ожидает ответа второй стороны.</summary>
         Pending,
+
+        /// <summary>Принято второй стороной.</summary>
         Accepted,
+
+        /// <summary>Отклонено второй стороной.</summary>
         Declined,
+
+        /// <summary>Отменено первой стороной до ответа.</summary>
         Cancelled
     }
 
     /// <summary>
-    /// Репозиторий для получения цен и скидок от NPC.
+    /// Репозиторий для получения информации о ценах и скидках при торговле с NPC.
+    /// Предоставляет базовые цены и модификаторы покупки/продажи, зависящие от NPC и персонажа.
     /// </summary>
     public interface ITradeRepository
     {
+        /// <summary>
+        /// Получить информацию о предмете по его идентификатору.
+        /// </summary>
+        /// <param name="itemId">Идентификатор предмета.</param>
+        /// <returns>Объект <see cref="TradeItem"/> или <c>null</c>, если предмет не найден.</returns>
         TradeItem? GetItemInfo(string itemId);
-        float GetBuyMultiplier(Guid npcId, Guid characterId);   // коэффициент к базовой цене при покупке
-        float GetSellMultiplier(Guid npcId, Guid characterId);  // коэффициент при продаже
+
+        /// <summary>
+        /// Получить множитель цены при покупке у конкретного NPC для конкретного персонажа.
+        /// Учитывает репутацию, навыки торговли и другие факторы.
+        /// </summary>
+        /// <param name="npcId">Идентификатор NPC-торговца.</param>
+        /// <param name="characterId">Идентификатор персонажа-покупателя.</param>
+        /// <returns>Коэффициент, на который умножается базовая цена.</returns>
+        float GetBuyMultiplier(Guid npcId, Guid characterId);
+
+        /// <summary>
+        /// Получить множитель цены при продаже конкретному NPC для конкретного персонажа.
+        /// Обычно меньше 1 (например, 0.5 — продажа за полцены).
+        /// </summary>
+        /// <param name="npcId">Идентификатор NPC-торговца.</param>
+        /// <param name="characterId">Идентификатор персонажа-продавца.</param>
+        /// <returns>Коэффициент, на который умножается базовая цена.</returns>
+        float GetSellMultiplier(Guid npcId, Guid characterId);
     }
 
+    /// <summary>
+    /// Класс-заглушка для представления торговой сделки (может быть расширен в будущем).
+    /// </summary>
     public class Trade
     {
+        /// <summary>Идентификатор сделки.</summary>
         public Guid Id { get; set; }
         // другие свойства по необходимости
     }
 
     /// <summary>
-    /// Репозиторий активных торговых предложений между игроками.
+    /// Репозиторий для управления торговыми предложениями между игроками.
+    /// Отвечает за хранение, поиск и обновление предложений.
     /// </summary>
     public interface ITradeOfferRepository
     {
+        /// <summary>Добавить новое предложение в хранилище.</summary>
         void Add(TradeOffer offer);
+
+        /// <summary>Найти предложение по идентификатору.</summary>
         TradeOffer? GetById(Guid offerId);
+
+        /// <summary>Обновить существующее предложение.</summary>
         void Update(TradeOffer offer);
+
+        /// <summary>Удалить предложение из хранилища.</summary>
         void Remove(Guid offerId);
     }
 
     // ---------- Сервис торговли ----------
 
+    /// <summary>
+    /// Сервис торговли, предоставляющий функциональность покупки и продажи предметов
+    /// как с NPC, так и между игроками. Проверяет права доступа, наличие ресурсов
+    /// и выполняет операции через командную шину.
+    /// </summary>
+    /// <remarks>
+    /// Паттерн: Application Service. Координирует бизнес-операции, делегируя изменения состояния
+    /// агрегатам через команды. Все проверки прав выполняются с помощью <see cref="PermissionChecker"/>.
+    /// </remarks>
     public class TradeService(
         ICommandBus commandBus,
         CharacterProjection characterProjection,
@@ -81,12 +164,21 @@ namespace dnd_game.Application.Services
         ITradeRepository tradeRepo,
         ITradeOfferRepository offerRepo)
     {
-
         // ---------- Торговля с NPC ----------
 
         /// <summary>
         /// Персонаж покупает предмет у NPC-торговца.
+        /// Проверяет права на управление персонажем, наличие предмета у торговца,
+        /// достаточность золота и добавляет предмет в инвентарь, списывая золото.
         /// </summary>
+        /// <param name="characterId">Идентификатор персонажа-покупателя.</param>
+        /// <param name="npcId">Идентификатор NPC-торговца.</param>
+        /// <param name="itemId">Идентификатор покупаемого предмета.</param>
+        /// <param name="quantity">Количество единиц (по умолчанию 1).</param>
+        /// <exception cref="UnauthorizedAccessException">Если у пользователя нет прав на управление персонажем.</exception>
+        /// <exception cref="InvalidOperationException">
+        /// Если персонаж не найден, предмет не найден, недостаточно золота или другие ошибки.
+        /// </exception>
         public async Task BuyItemFromNpc(Guid characterId, Guid npcId, string itemId, int quantity = 1)
         {
             // Проверка прав: игрок может управлять своим персонажем
@@ -120,7 +212,15 @@ namespace dnd_game.Application.Services
 
         /// <summary>
         /// Персонаж продаёт предмет NPC-торговцу.
+        /// Проверяет права, наличие предмета в инвентаре, вычисляет цену продажи
+        /// и обновляет инвентарь и золото.
         /// </summary>
+        /// <param name="characterId">Идентификатор персонажа-продавца.</param>
+        /// <param name="npcId">Идентификатор NPC-торговца.</param>
+        /// <param name="itemId">Идентификатор продаваемого предмета.</param>
+        /// <param name="quantity">Количество единиц (по умолчанию 1).</param>
+        /// <exception cref="UnauthorizedAccessException">Если нет прав на управление персонажем.</exception>
+        /// <exception cref="InvalidOperationException">Если персонаж не найден, предмет не найден или недостаточно предмета для продажи.</exception>
         public async Task SellItemToNpc(Guid characterId, Guid npcId, string itemId, int quantity = 1)
         {
             if (!permissionChecker.CanControlCharacter(characterId))
@@ -154,7 +254,20 @@ namespace dnd_game.Application.Services
 
         /// <summary>
         /// Создать предложение обмена между двумя персонажами.
+        /// Проверяет, что предлагающий персонаж существует и имеет достаточно ресурсов
+        /// для выполнения своей части сделки. Предложение сохраняется в репозитории.
         /// </summary>
+        /// <param name="fromCharacterId">Идентификатор персонажа, делающего предложение.</param>
+        /// <param name="toCharacterId">Идентификатор персонажа, которому адресовано предложение.</param>
+        /// <param name="offeredItems">Список предметов, предлагаемых первой стороной.</param>
+        /// <param name="offeredGold">Количество золота, предлагаемое первой стороной.</param>
+        /// <param name="requestedItems">Список предметов, запрашиваемых первой стороной.</param>
+        /// <param name="requestedGold">Количество золота, запрашиваемое первой стороной.</param>
+        /// <returns>Созданное предложение <see cref="TradeOffer"/>.</returns>
+        /// <exception cref="UnauthorizedAccessException">Если нет прав на управление предлагающим персонажем.</exception>
+        /// <exception cref="InvalidOperationException">
+        /// Если персонажи не найдены, недостаточно предметов или золота для предложения.
+        /// </exception>
         public async Task<TradeOffer> ProposeTrade(Guid fromCharacterId, Guid toCharacterId, List<TradeItem> offeredItems, int offeredGold, List<TradeItem> requestedItems, int requestedGold)
         {
             if (!permissionChecker.CanControlCharacter(fromCharacterId))
@@ -194,7 +307,13 @@ namespace dnd_game.Application.Services
 
         /// <summary>
         /// Принять предложение обмена.
+        /// Проверяет, что предложение действительно и ожидает ответа, что принимающий имеет права,
+        /// и что у него достаточно ресурсов для выполнения своей части сделки.
+        /// Затем выполняет атомарный обмен предметами и золотом между персонажами.
         /// </summary>
+        /// <param name="offerId">Идентификатор предложения.</param>
+        /// <exception cref="InvalidOperationException">Если предложение не найдено, не в статусе Pending или недостаточно ресурсов.</exception>
+        /// <exception cref="UnauthorizedAccessException">Если пользователь не может управлять принимающим персонажем.</exception>
         public async Task AcceptTrade(Guid offerId)
         {
             var offer = offerRepo.GetById(offerId)
@@ -221,7 +340,8 @@ namespace dnd_game.Application.Services
                 throw new InvalidOperationException("Not enough gold to complete the trade.");
 
             // Атомарно проводим обмен: отправляем команды на перемещение предметов и золота
-            // Сначала забираем у предлагающего
+
+            // 1. Забираем у предлагающего (FromCharacterId) предлагаемые предметы и золото
             foreach (var item in offer.OfferedItems)
             {
                 for (int i = 0; i < item.Quantity; i++)
@@ -230,7 +350,7 @@ namespace dnd_game.Application.Services
             if (offer.OfferedGold > 0)
                 await commandBus.SendAsync(new SpendGold(offer.FromCharacterId, offer.OfferedGold));
 
-            // Отдаём предлагающему запрошенное
+            // 2. Забираем у принимающего (ToCharacterId) запрашиваемые предметы и золото
             foreach (var item in offer.RequestedItems)
             {
                 for (int i = 0; i < item.Quantity; i++)
@@ -239,7 +359,7 @@ namespace dnd_game.Application.Services
             if (offer.RequestedGold > 0)
                 await commandBus.SendAsync(new SpendGold(offer.ToCharacterId, offer.RequestedGold));
 
-            // Даём принимающему предложенные предметы и золото
+            // 3. Передаём принимающему предложенные предметы и золото
             foreach (var item in offer.OfferedItems)
             {
                 await commandBus.SendAsync(new AddInventoryItem(offer.ToCharacterId, item.ItemId, item.ItemName, item.Quantity));
@@ -247,7 +367,7 @@ namespace dnd_game.Application.Services
             if (offer.OfferedGold > 0)
                 await commandBus.SendAsync(new AddGold(offer.ToCharacterId, offer.OfferedGold));
 
-            // Даём предлагающему запрошенные предметы и золото
+            // 4. Передаём предлагающему запрошенные предметы и золото
             foreach (var item in offer.RequestedItems)
             {
                 await commandBus.SendAsync(new AddInventoryItem(offer.FromCharacterId, item.ItemId, item.ItemName, item.Quantity));
@@ -265,7 +385,11 @@ namespace dnd_game.Application.Services
 
         /// <summary>
         /// Отклонить предложение обмена.
+        /// Может выполнить только персонаж, которому адресовано предложение.
         /// </summary>
+        /// <param name="offerId">Идентификатор предложения.</param>
+        /// <exception cref="InvalidOperationException">Если предложение не найдено или не в статусе Pending.</exception>
+        /// <exception cref="UnauthorizedAccessException">Если пользователь не может управлять принимающим персонажем.</exception>
         public Task DeclineTrade(Guid offerId)
         {
             var offer = offerRepo.GetById(offerId)
@@ -282,8 +406,12 @@ namespace dnd_game.Application.Services
         }
 
         /// <summary>
-        /// Отменить своё предложение (до того, как его приняли/отклонили).
+        /// Отменить своё предложение (до того, как его приняли или отклонили).
+        /// Может выполнить только персонаж, создавший предложение.
         /// </summary>
+        /// <param name="offerId">Идентификатор предложения.</param>
+        /// <exception cref="InvalidOperationException">Если предложение не найдено или не в статусе Pending.</exception>
+        /// <exception cref="UnauthorizedAccessException">Если пользователь не может управлять предлагающим персонажем.</exception>
         public Task CancelTradeOffer(Guid offerId)
         {
             var offer = offerRepo.GetById(offerId)
@@ -302,13 +430,15 @@ namespace dnd_game.Application.Services
         // ---------- Вспомогательные методы ----------
 
         /// <summary>
-        /// Получить количество золота у персонажа. Заглушка: в реальной системе нужно иметь соответствующее поле в CharacterProjection или команду GetGold.
+        /// Получить количество золота у персонажа.
+        /// Заглушка: в реальной системе нужно иметь соответствующее поле в CharacterProjection или команду GetGold.
+        /// В текущей реализации возвращает значение из DTO персонажа (<see cref="CharacterDto.Gold"/>).
         /// </summary>
+        /// <param name="characterId">Идентификатор персонажа.</param>
+        /// <returns>Количество золота у персонажа (0, если персонаж не найден).</returns>
         private async Task<int> GetCharacterGold(Guid characterId)
         {
-            // Через проекцию или отдельный запрос
             var character = await characterProjection.GetById(characterId);
-            // Предположим, что в CharacterDto есть поле Gold (можно добавить). Пока заглушка 0.
             return character?.Gold ?? 0;
         }
     }

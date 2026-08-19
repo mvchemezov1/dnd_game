@@ -4,6 +4,7 @@ using dnd_game.Domain.Commands;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using dnd_game.infrastructure.message_bus;
+using dnd_game.application.event_handlers;
 
 namespace dnd_game.Application.EventHandlers
 {

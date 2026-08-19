@@ -1,7 +1,7 @@
 // infrastructure/message_bus/event_bus.cs
 using dnd_game.Domain.Events;
-using dnd_game.Application.EventHandlers;
 using dnd_game.infrastructure.message_bus;
+using dnd_game.application.event_handlers;
 
 namespace dnd_game.Infrastructure.MessageBus
 {

@@ -14,93 +14,171 @@ namespace dnd_game.Application.Services
 
     /// <summary>
     /// Узел диалогового дерева.
+    /// Представляет реплику NPC и набор возможных ответов игрока.
     /// </summary>
     public class DialogueNode
     {
+        /// <summary>Уникальный идентификатор узла.</summary>
         public Guid NodeId { get; set; }
-        public string NpcText { get; set; } = string.Empty;                // Текст, произносимый NPC
-        public List<DialogueOption> Options { get; set; } = [];         // Доступные варианты ответа игрока
-        public bool IsExitNode { get; set; }                               // Завершает диалог при достижении
+
+        /// <summary>Текст, произносимый NPC.</summary>
+        public string NpcText { get; set; } = string.Empty;
+
+        /// <summary>Доступные варианты ответа игрока.</summary>
+        public List<DialogueOption> Options { get; set; } = [];
+
+        /// <summary>Если <c>true</c>, диалог завершается при достижении этого узла.</summary>
+        public bool IsExitNode { get; set; }
     }
 
     /// <summary>
-    /// Вариант ответа игрока.
+    /// Вариант ответа игрока в диалоге.
+    /// Может содержать условия видимости, проверку навыка и эффекты.
     /// </summary>
     public class DialogueOption
     {
+        /// <summary>Уникальный идентификатор варианта ответа.</summary>
         public Guid OptionId { get; set; }
-        public string PlayerText { get; set; } = string.Empty;             // Текст, который видит игрок
-        public Guid? NextNodeId { get; set; }                              // Следующий узел (null — остаться на текущем / завершить)
-        public List<DialogueCondition>? Conditions { get; set; }           // Условия видимости варианта
-        public DialogueCheck? SkillCheck { get; set; }                     // Проверка навыка, если требуется
-        public List<DialogueEffect>? SuccessEffects { get; set; }          // Эффекты при успехе проверки (или если проверки нет)
-        public List<DialogueEffect>? FailureEffects { get; set; }          // Эффекты при провале проверки
+
+        /// <summary>Текст, который видит игрок.</summary>
+        public string PlayerText { get; set; } = string.Empty;
+
+        /// <summary>Идентификатор следующего узла. <c>null</c> — завершить диалог.</summary>
+        public Guid? NextNodeId { get; set; }
+
+        /// <summary>Условия видимости варианта ответа.</summary>
+        public List<DialogueCondition>? Conditions { get; set; }
+
+        /// <summary>Проверка навыка, если требуется для этого варианта.</summary>
+        public DialogueCheck? SkillCheck { get; set; }
+
+        /// <summary>Эффекты при успехе проверки (или если проверки нет).</summary>
+        public List<DialogueEffect>? SuccessEffects { get; set; }
+
+        /// <summary>Эффекты при провале проверки.</summary>
+        public List<DialogueEffect>? FailureEffects { get; set; }
     }
 
     /// <summary>
     /// Условие отображения варианта ответа.
+    /// Используется для скрытия или показа опций в зависимости от состояния персонажа или мира.
     /// </summary>
     public class DialogueCondition
     {
-        public string Type { get; set; } = string.Empty;                   // "HasItem", "MinLevel", "ReputationAbove", "QuestCompleted", "FlagSet", ...
+        /// <summary>
+        /// Тип условия: "HasItem", "MinLevel", "ReputationAbove", "QuestCompleted", "FlagSet" и другие.
+        /// </summary>
+        public string Type { get; set; } = string.Empty;
+
+        /// <summary>Параметр условия (например, идентификатор предмета или флага).</summary>
         public string Parameter { get; set; } = string.Empty;
+
+        /// <summary>Значение для сравнения (например, требуемый уровень или количество).</summary>
         public string Value { get; set; } = string.Empty;
     }
 
     /// <summary>
     /// Проверка навыка / характеристики во время диалога.
+    /// Определяет, какой бросок должен выполнить игрок и с какой сложностью.
     /// </summary>
     public class DialogueCheck
     {
-        public string SkillOrAbility { get; set; } = string.Empty;         // "Persuasion", "Intimidation", "Deception", "Insight", "Charisma", ...
-        public int DifficultyClass { get; set; }                           // DC проверки
+        /// <summary>Название навыка или характеристики (например, "Persuasion", "Intimidation").</summary>
+        public string SkillOrAbility { get; set; } = string.Empty;
+
+        /// <summary>Сложность проверки (DC).</summary>
+        public int DifficultyClass { get; set; }
     }
 
     /// <summary>
-    /// Эффект (действие), выполняемое при выборе варианта.
+    /// Эффект (действие), выполняемое при выборе варианта ответа.
+    /// Описывает изменение состояния: выдача предметов, изменение репутации, запуск квестов и т.д.
     /// </summary>
     public class DialogueEffect
     {
-        public string EffectType { get; set; } = string.Empty;             // "ChangeReputation", "GiveItem", "StartQuest", "SetFlag", "StartCombat", ...
+        /// <summary>Тип эффекта: "ChangeReputation", "GiveItem", "StartQuest", "SetFlag", "StartCombat" и др.</summary>
+        public string EffectType { get; set; } = string.Empty;
+
+        /// <summary>Параметры эффекта, специфичные для каждого типа.</summary>
         public Dictionary<string, string> Parameters { get; set; } = [];
     }
 
     /// <summary>
     /// Текущее состояние диалога для одного участника.
+    /// Хранит информацию о текущем узле, посещённых узлах и активности диалога.
     /// </summary>
     public class DialogueState
     {
+        /// <summary>Идентификатор активного диалога (соответствует идентификатору корневого узла или диалога).</summary>
         public Guid DialogueId { get; set; }
+
+        /// <summary>Идентификатор NPC, участвующего в диалоге.</summary>
         public Guid NpcId { get; set; }
+
+        /// <summary>Идентификатор персонажа игрока.</summary>
         public Guid CharacterId { get; set; }
+
+        /// <summary>Идентификатор текущего узла диалога.</summary>
         public Guid CurrentNodeId { get; set; }
+
+        /// <summary>Признак активности диалога.</summary>
         public bool IsActive { get; set; } = true;
+
+        /// <summary>Список идентификаторов посещённых узлов (для отслеживания прогресса).</summary>
         public List<Guid> VisitedNodeIds { get; set; } = [];
     }
 
     // ---------- Репозиторий диалогов ----------
 
+    /// <summary>
+    /// Репозиторий диалоговых деревьев.
+    /// Предоставляет доступ к узлам диалогов по их идентификаторам.
+    /// </summary>
     public interface IDialogueRepository
     {
+        /// <summary>
+        /// Возвращает корневой узел диалога.
+        /// </summary>
+        /// <param name="dialogueId">Идентификатор диалога.</param>
+        /// <returns>Корневой узел или <c>null</c>, если диалог не найден.</returns>
         DialogueNode? GetRootNode(Guid dialogueId);
+
+        /// <summary>
+        /// Возвращает узел по идентификаторам диалога и узла.
+        /// </summary>
+        /// <param name="dialogueId">Идентификатор диалога.</param>
+        /// <param name="nodeId">Идентификатор узла.</param>
+        /// <returns>Узел или <c>null</c>, если не найден.</returns>
         DialogueNode? GetNode(Guid dialogueId, Guid nodeId);
     }
 
     // ---------- Сервис диалогов ----------
 
+    /// <summary>
+    /// Сервис для управления диалогами между персонажами игроков и NPC.
+    /// Реализует логику начала, выбора вариантов, применения эффектов и завершения диалогов.
+    /// Использует командную шину для изменения состояния и проекции для чтения данных персонажа.
+    /// </summary>
     public class DialogService(
         ICommandBus commandBus,
         IDialogueRepository dialogueRepo,
         CharacterProjection characterProjection,
         PermissionChecker permissionChecker)
     {
-
-        // Хранение активных состояний (в памяти, в реальном проекте – в БД или кэше)
+        /// <summary>Хранилище активных диалогов (в памяти; в реальном проекте — БД или кэш).</summary>
         private readonly ConcurrentDictionary<Guid, DialogueState> _activeDialogues = new();
 
         /// <summary>
         /// Начать диалог между персонажем игрока и NPC.
+        /// Проверяет права на управление персонажем, наличие диалога и его корневого узла,
+        /// а также отсутствие уже активного диалога с этим NPC.
         /// </summary>
+        /// <param name="dialogueId">Идентификатор диалогового дерева.</param>
+        /// <param name="npcId">Идентификатор NPC.</param>
+        /// <param name="characterId">Идентификатор персонажа игрока.</param>
+        /// <returns>Состояние начатого диалога.</returns>
+        /// <exception cref="UnauthorizedAccessException">Если у пользователя нет прав на управление персонажем.</exception>
+        /// <exception cref="InvalidOperationException">Если диалог не найден или уже активен с этим NPC.</exception>
         public async Task<DialogueState> StartDialogue(Guid dialogueId, Guid npcId, Guid characterId)
         {
             // Проверка прав: игрок может управлять своим персонажем; мастер может начинать диалог за любого
@@ -133,8 +211,14 @@ namespace dnd_game.Application.Services
 
         /// <summary>
         /// Выбрать вариант ответа в активном диалоге.
-        /// Возвращает обновлённое состояние диалога.
+        /// Проверяет условия видимости, выполняет переход к следующему узлу или завершает диалог.
+        /// Если вариант требует проверку навыка, метод выбрасывает исключение и ожидает вызова <see cref="ResolveSkillCheck"/>.
         /// </summary>
+        /// <param name="dialogueId">Идентификатор активного диалога.</param>
+        /// <param name="optionId">Идентификатор выбранного варианта ответа.</param>
+        /// <returns>Обновлённое состояние диалога.</returns>
+        /// <exception cref="InvalidOperationException">Если диалог не активен, узел/вариант не найден, условия не выполнены или требуется проверка навыка.</exception>
+        /// <exception cref="UnauthorizedAccessException">Если у пользователя нет прав на управление персонажем.</exception>
         public async Task<DialogueState> SelectOption(Guid dialogueId, Guid optionId)
         {
             if (!_activeDialogues.TryGetValue(dialogueId, out var state))
@@ -207,7 +291,15 @@ namespace dnd_game.Application.Services
 
         /// <summary>
         /// Разрешить проверку навыка в диалоге. Вызывается после того, как бросок сделан.
+        /// Вычисляет успешность, применяет соответствующие эффекты и выполняет переход.
         /// </summary>
+        /// <param name="dialogueId">Идентификатор активного диалога.</param>
+        /// <param name="optionId">Идентификатор варианта ответа с проверкой.</param>
+        /// <param name="rollResult">Результат броска d20.</param>
+        /// <param name="proficiencyBonus">Бонус мастерства персонажа.</param>
+        /// <param name="abilityModifier">Модификатор соответствующей характеристики.</param>
+        /// <returns>Обновлённое состояние диалога.</returns>
+        /// <exception cref="InvalidOperationException">Если диалог не найден или вариант не требует проверки.</exception>
         public async Task<DialogueState> ResolveSkillCheck(Guid dialogueId, Guid optionId, int rollResult, int proficiencyBonus, int abilityModifier)
         {
             if (!_activeDialogues.TryGetValue(dialogueId, out var state))
@@ -247,6 +339,8 @@ namespace dnd_game.Application.Services
         /// <summary>
         /// Получить текущее состояние диалога (текст NPC, варианты ответов).
         /// </summary>
+        /// <param name="dialogueId">Идентификатор активного диалога.</param>
+        /// <returns>Текущий узел диалога или <c>null</c>, если диалог не активен или не найден.</returns>
         public DialogueNode? GetCurrentDialogueNode(Guid dialogueId)
         {
             if (!_activeDialogues.TryGetValue(dialogueId, out var state) || !state.IsActive)
@@ -258,6 +352,8 @@ namespace dnd_game.Application.Services
         /// <summary>
         /// Принудительно завершить диалог.
         /// </summary>
+        /// <param name="dialogueId">Идентификатор активного диалога.</param>
+        /// <exception cref="InvalidOperationException">Если диалог не найден.</exception>
         public async Task EndDialogue(Guid dialogueId)
         {
             if (!_activeDialogues.TryGetValue(dialogueId, out var state))
@@ -268,6 +364,11 @@ namespace dnd_game.Application.Services
 
         // ---------- Приватные методы ----------
 
+        /// <summary>
+        /// Внутренняя логика завершения диалога: помечает состояние неактивным, удаляет из словаря
+        /// и отправляет соответствующую команду.
+        /// </summary>
+        /// <param name="state">Состояние диалога для завершения.</param>
         private async Task EndDialogueInternal(DialogueState state)
         {
             state.IsActive = false;
@@ -275,6 +376,12 @@ namespace dnd_game.Application.Services
             await commandBus.SendAsync(new EndDialogueCommand(state.DialogueId));
         }
 
+        /// <summary>
+        /// Применяет эффект диалога, отправляя соответствующую команду через командную шину.
+        /// Тип эффекта определяет, какая команда будет отправлена.
+        /// </summary>
+        /// <param name="state">Текущее состояние диалога (для получения идентификатора персонажа).</param>
+        /// <param name="effect">Эффект для применения.</param>
         private async Task ApplyEffect(DialogueState state, DialogueEffect effect)
         {
             switch (effect.EffectType)
@@ -337,6 +444,12 @@ namespace dnd_game.Application.Services
             }
         }
 
+        /// <summary>
+        /// Проверяет условие видимости варианта ответа на основе данных персонажа из проекции.
+        /// </summary>
+        /// <param name="characterId">Идентификатор персонажа.</param>
+        /// <param name="condition">Условие для проверки.</param>
+        /// <returns><c>true</c>, если условие выполнено; иначе <c>false</c>.</returns>
         private async Task<bool> EvaluateCondition(Guid characterId, DialogueCondition condition)
         {
             var character = await characterProjection.GetById(characterId);

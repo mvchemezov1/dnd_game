@@ -1,22 +1,35 @@
-// application/projections/combat_projection.cs
+﻿// application/projections/combat_projection.cs
 using dnd_game.Domain.Events;
 using dnd_game.Domain.Queries;
 using dnd_game.Infrastructure.Caching;
 
 namespace dnd_game.Application.Projections;
 
-public class CombatProjection
+/// <summary>
+/// Проекция боевых сцен, отвечающая за построение read-модели на основе событий предметной области.
+/// Хранит текущее состояние боя в памяти (в реальном приложении — в БД) и предоставляет методы чтения с кешированием.
+/// </summary>
+/// <remarks>
+/// Инициализирует новый экземпляр проекции боевых сцен.
+/// </remarks>
+/// <param name="cache">Провайдер кеша.</param>
+/// <param name="cacheTtl">Время жизни кеша; по умолчанию 1 минута.</param>
+public class CombatProjection(ICacheProvider cache, TimeSpan? cacheTtl = null)
 {
-    private readonly Dictionary<Guid, CombatStatusDto> _state = new();
-    private readonly ICacheProvider _cache;
-    private readonly TimeSpan _cacheTtl;
+    /// <summary>Хранилище DTO боевых сцен: идентификатор боя → состояние.</summary>
+    private readonly Dictionary<Guid, CombatStatusDto> _state = [];
 
-    public CombatProjection(ICacheProvider cache, TimeSpan? cacheTtl = null)
-    {
-        _cache = cache;
-        _cacheTtl = cacheTtl ?? TimeSpan.FromMinutes(1);
-    }
+    /// <summary>Провайдер кеша для ускорения повторных чтений.</summary>
+    private readonly ICacheProvider _cache = cache;
 
+    /// <summary>Время жизни записей в кеше.</summary>
+    private readonly TimeSpan _cacheTtl = cacheTtl ?? TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// Инвалидирует кеш, связанный с конкретным боем.
+    /// Выполняется асинхронно в фоновом потоке, чтобы не блокировать обработку события.
+    /// </summary>
+    /// <param name="combatId">Идентификатор боя, кеш которого требуется сбросить.</param>
     private void InvalidateCache(Guid combatId)
     {
         _ = Task.Run(async () =>
@@ -27,6 +40,11 @@ public class CombatProjection
         });
     }
 
+    /// <summary>
+    /// Обрабатывает событие начала боя (<see cref="CombatStarted"/>).
+    /// Создаёт DTO боя с начальными значениями и сбрасывает кеш.
+    /// </summary>
+    /// <param name="e">Событие начала боя, содержащее идентификатор боя и список участников.</param>
     public void Apply(CombatStarted e)
     {
         var participants = e.Participants
@@ -40,6 +58,11 @@ public class CombatProjection
         InvalidateCache(e.CombatId);
     }
 
+    /// <summary>
+    /// Обрабатывает событие окончания боя (<see cref="CombatEnded"/>).
+    /// Помечает бой как неактивный.
+    /// </summary>
+    /// <param name="e">Событие окончания боя.</param>
     public void Apply(CombatEnded e)
     {
         if (_state.TryGetValue(e.CombatId, out var dto))
@@ -49,6 +72,11 @@ public class CombatProjection
         }
     }
 
+    /// <summary>
+    /// Обрабатывает событие броска инициативы (<see cref="InitiativeRolled"/>).
+    /// Обновляет инициативу участника.
+    /// </summary>
+    /// <param name="e">Событие броска инициативы, содержащее идентификатор боя, персонажа и значение инициативы.</param>
     public void Apply(InitiativeRolled e)
     {
         if (_state.TryGetValue(e.CombatId, out var dto))
@@ -63,6 +91,11 @@ public class CombatProjection
         }
     }
 
+    /// <summary>
+    /// Обрабатывает событие начала раунда (<see cref="CombatRoundStarted"/>).
+    /// Сортирует участников по инициативе (по убыванию) и устанавливает первый ход.
+    /// </summary>
+    /// <param name="e">Событие начала раунда с номером раунда.</param>
     public void Apply(CombatRoundStarted e)
     {
         if (_state.TryGetValue(e.CombatId, out var dto))
@@ -80,6 +113,11 @@ public class CombatProjection
         }
     }
 
+    /// <summary>
+    /// Обрабатывает событие начала хода (<see cref="CombatTurnStarted"/>).
+    /// Обновляет состояние участника: устанавливает его текущим, сбрасывает доступные действия и движение.
+    /// </summary>
+    /// <param name="e">Событие начала хода с идентификатором персонажа.</param>
     public void Apply(CombatTurnStarted e)
     {
         if (_state.TryGetValue(e.CombatId, out var dto))
@@ -95,6 +133,11 @@ public class CombatProjection
         }
     }
 
+    /// <summary>
+    /// Обрабатывает событие окончания хода (<see cref="CombatTurnEnded"/>).
+    /// Снимает признак текущего хода с участника.
+    /// </summary>
+    /// <param name="e">Событие окончания хода.</param>
     public void Apply(CombatTurnEnded e)
     {
         if (_state.TryGetValue(e.CombatId, out var dto))
@@ -107,6 +150,11 @@ public class CombatProjection
         }
     }
 
+    /// <summary>
+    /// Обрабатывает событие использования основного действия (<see cref="CombatActionTaken"/>).
+    /// Помечает, что основное действие участника недоступно.
+    /// </summary>
+    /// <param name="e">Событие использования основного действия.</param>
     public void Apply(CombatActionTaken e)
     {
         if (_state.TryGetValue(e.CombatId, out var dto))
@@ -119,6 +167,11 @@ public class CombatProjection
         }
     }
 
+    /// <summary>
+    /// Обрабатывает событие использования бонусного действия (<see cref="CombatBonusActionTaken"/>).
+    /// Помечает, что бонусное действие участника недоступно.
+    /// </summary>
+    /// <param name="e">Событие использования бонусного действия.</param>
     public void Apply(CombatBonusActionTaken e)
     {
         if (_state.TryGetValue(e.CombatId, out var dto))
@@ -131,6 +184,11 @@ public class CombatProjection
         }
     }
 
+    /// <summary>
+    /// Обрабатывает событие использования реакции (<see cref="CombatReactionUsed"/>).
+    /// Помечает, что реакция участника недоступна.
+    /// </summary>
+    /// <param name="e">Событие использования реакции.</param>
     public void Apply(CombatReactionUsed e)
     {
         if (_state.TryGetValue(e.CombatId, out var dto))
@@ -143,6 +201,11 @@ public class CombatProjection
         }
     }
 
+    /// <summary>
+    /// Обрабатывает событие использования движения (<see cref="CombatMovementUsed"/>).
+    /// Уменьшает оставшееся движение участника на указанное количество футов.
+    /// </summary>
+    /// <param name="e">Событие использования движения с количеством футов.</param>
     public void Apply(CombatMovementUsed e)
     {
         if (_state.TryGetValue(e.CombatId, out var dto))
@@ -155,13 +218,18 @@ public class CombatProjection
         }
     }
 
+    /// <summary>
+    /// Обрабатывает событие наложения состояния на участника боя (<see cref="ConditionAppliedToCombatant"/>).
+    /// Добавляет состояние в список активных состояний участника.
+    /// </summary>
+    /// <param name="e">Событие наложения состояния.</param>
     public void Apply(ConditionAppliedToCombatant e)
     {
         if (_state.TryGetValue(e.CombatId, out var dto))
         {
             var participants = dto.Participants.Select(p =>
                 p.CharacterId == e.CharacterId
-                    ? p with { Conditions = p.Conditions.Append(e.Condition).ToList() }
+                    ? p with { Conditions = [.. p.Conditions, e.Condition] }
                     : p
             ).ToList();
             _state[e.CombatId] = dto with { Participants = participants };
@@ -169,13 +237,18 @@ public class CombatProjection
         }
     }
 
+    /// <summary>
+    /// Обрабатывает событие снятия состояния с участника боя (<see cref="ConditionRemovedFromCombatant"/>).
+    /// Удаляет состояние из списка активных состояний.
+    /// </summary>
+    /// <param name="e">Событие снятия состояния.</param>
     public void Apply(ConditionRemovedFromCombatant e)
     {
         if (_state.TryGetValue(e.CombatId, out var dto))
         {
             var participants = dto.Participants.Select(p =>
                 p.CharacterId == e.CharacterId
-                    ? p with { Conditions = p.Conditions.Where(c => c != e.Condition).ToList() }
+                    ? p with { Conditions = [.. p.Conditions.Where(c => c != e.Condition)] }
                     : p
             ).ToList();
             _state[e.CombatId] = dto with { Participants = participants };
@@ -183,6 +256,11 @@ public class CombatProjection
         }
     }
 
+    /// <summary>
+    /// Обрабатывает событие начала концентрации (<see cref="CombatConcentrationStarted"/>).
+    /// Устанавливает признак концентрации для участника.
+    /// </summary>
+    /// <param name="e">Событие начала концентрации.</param>
     public void Apply(CombatConcentrationStarted e)
     {
         if (_state.TryGetValue(e.CombatId, out var dto))
@@ -195,6 +273,11 @@ public class CombatProjection
         }
     }
 
+    /// <summary>
+    /// Обрабатывает событие окончания концентрации (<see cref="CombatConcentrationEnded"/>).
+    /// Снимает признак концентрации с участника.
+    /// </summary>
+    /// <param name="e">Событие окончания концентрации.</param>
     public void Apply(CombatConcentrationEnded e)
     {
         if (_state.TryGetValue(e.CombatId, out var dto))
@@ -207,6 +290,11 @@ public class CombatProjection
         }
     }
 
+    /// <summary>
+    /// Обрабатывает событие добавления участника в бой (<see cref="ParticipantAddedToCombat"/>).
+    /// Добавляет нового участника и пересортировывает список по инициативе.
+    /// </summary>
+    /// <param name="e">Событие добавления участника.</param>
     public void Apply(ParticipantAddedToCombat e)
     {
         if (_state.TryGetValue(e.CombatId, out var dto))
@@ -220,6 +308,11 @@ public class CombatProjection
         }
     }
 
+    /// <summary>
+    /// Обрабатывает событие удаления участника из боя (<see cref="ParticipantRemovedFromCombat"/>).
+    /// Удаляет участника из списка.
+    /// </summary>
+    /// <param name="e">Событие удаления участника.</param>
     public void Apply(ParticipantRemovedFromCombat e)
     {
         if (_state.TryGetValue(e.CombatId, out var dto))
@@ -230,7 +323,13 @@ public class CombatProjection
         }
     }
 
-    // ---------- ������ ������� (� �����) ----------
+    // ---------- Методы доступа (с кешем) ----------
+
+    /// <summary>
+    /// Получает полное состояние боя по идентификатору. Использует кеширование.
+    /// </summary>
+    /// <param name="combatId">Идентификатор боя.</param>
+    /// <returns>Объект <see cref="CombatStatusDto"/> или null, если бой не найден.</returns>
     public async Task<CombatStatusDto?> GetStatus(Guid combatId)
     {
         var cacheKey = $"combat:{combatId}";
@@ -246,6 +345,11 @@ public class CombatProjection
         return null;
     }
 
+    /// <summary>
+    /// Получает список участников боя. Использует кеширование.
+    /// </summary>
+    /// <param name="combatId">Идентификатор боя.</param>
+    /// <returns>Список DTO участников; пустой список, если бой не найден.</returns>
     public async Task<List<CombatParticipantDto>> GetParticipants(Guid combatId)
     {
         var cacheKey = $"combat:participants:{combatId}";
@@ -258,9 +362,14 @@ public class CombatProjection
             await _cache.SetAsync(cacheKey, dto.Participants, _cacheTtl);
             return dto.Participants;
         }
-        return new List<CombatParticipantDto>();
+        return [];
     }
 
+    /// <summary>
+    /// Получает текущего участника боя (того, чей ход сейчас). Использует кеширование.
+    /// </summary>
+    /// <param name="combatId">Идентификатор боя.</param>
+    /// <returns>DTO текущего участника или null, если ход ничей или бой не найден.</returns>
     public async Task<CombatParticipantDto?> GetCurrentParticipant(Guid combatId)
     {
         var cacheKey = $"combat:current:{combatId}";

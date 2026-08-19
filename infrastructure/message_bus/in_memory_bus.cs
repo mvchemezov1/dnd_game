@@ -2,10 +2,10 @@
 using dnd_game.Domain.Commands;
 using dnd_game.Domain.Queries;
 using dnd_game.Domain.Events;
-using dnd_game.Application.EventHandlers;
 using System.Collections.Concurrent;
 using System.Reflection;
 using dnd_game.infrastructure.message_bus;
+using dnd_game.application.event_handlers;
 
 namespace dnd_game.Infrastructure.MessageBus
 {
