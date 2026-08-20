@@ -3,6 +3,7 @@ using dnd_game.Application.EventHandlers;
 using dnd_game.Application.Projections;
 using dnd_game.Application.Security;
 using dnd_game.Application.Services;
+using dnd_game.Domain.Events;
 using dnd_game.infrastructure.event_store;
 using dnd_game.Infrastructure.AI;
 using dnd_game.Infrastructure.Caching;
@@ -10,6 +11,7 @@ using dnd_game.Infrastructure.Common;
 using dnd_game.Infrastructure.Coordination;
 using dnd_game.Infrastructure.EventStore;
 using dnd_game.Infrastructure.Exceptions;
+using dnd_game.Infrastructure.MessageBus;
 using dnd_game.Infrastructure.Monitoring;
 using dnd_game.Infrastructure.Security;
 using dnd_game.migrations;
@@ -102,7 +104,6 @@ internal class Program
 
         builder.Services.AddSingleton<IDistributedLockManager, InMemoryLockManager>();
         // ConsistencyManager регистрируется через AddGameServices (с Lazy), поэтому здесь не дублируем
-        // builder.Services.AddSingleton<IConsistencyManager, ConsistencyManager>(); // убрали
 
         var snapshotConfig = new SnapshotConfiguration { EventCountInterval = 100 };
         builder.Services.AddSingleton<ISnapshotStore>(sp =>
@@ -115,8 +116,9 @@ internal class Program
             var consistencyManager = sp.GetRequiredService<IConsistencyManager>();
             var logger = sp.GetRequiredService<ILogger<PostgresEventStore>>();
             var metrics = sp.GetRequiredService<IMetricsCollector>();
+            var eventBus = sp.GetRequiredService<IEventBus>();
             Console.WriteLine("[LOG] Создание PostgresEventStore...");
-            return new PostgresEventStore(connectionString, snapshotStore, consistencyManager, logger, metrics);
+            return new PostgresEventStore(connectionString, snapshotStore, consistencyManager, logger, metrics, eventBus);
         });
         Console.WriteLine("[LOG] EventStore зарегистрирован");
 
@@ -156,12 +158,13 @@ internal class Program
         Console.WriteLine("[LOG] Проекции зарегистрированы");
 
         // ============================================================
-        // 7. Миграции
+        // 7. Миграции (DatabaseMigrator) – регистрируем ДО app.Build()
         // ============================================================
         builder.Services.AddSingleton<DatabaseMigrator>(sp =>
         {
+            var connString = builder.Configuration.GetConnectionString("DefaultConnection");
             var logger = sp.GetRequiredService<ILogger<DatabaseMigrator>>();
-            return new DatabaseMigrator(connectionString, logger);
+            return new DatabaseMigrator(connString!, logger);
         });
         Console.WriteLine("[LOG] DatabaseMigrator зарегистрирован");
 
@@ -264,7 +267,7 @@ internal class Program
         // ============================================================
         var app = builder.Build();
 
-        // Применяем миграции
+        // Применяем миграции (DatabaseMigrator уже зарегистрирован в DI)
         var migrator = app.Services.GetRequiredService<DatabaseMigrator>();
         if (!migrator.Migrate())
         {
@@ -276,6 +279,100 @@ internal class Program
         // Регистрация саг (после построения контейнера)
         dnd_game.Infrastructure.Coordination.SagaRegistrations.RegisterAll(app.Services);
         Console.WriteLine("МЕТКА 5.1: Саги зарегистрированы");
+
+        // ============================================================
+        // ✅ ПОДПИСКА ПРОЕКЦИЙ НА СОБЫТИЯ
+        // ============================================================
+        var eventBus = app.Services.GetRequiredService<IEventBus>();
+        var characterProjection = app.Services.GetRequiredService<CharacterProjection>();
+        var combatProjection = app.Services.GetRequiredService<CombatProjection>();
+        var campaignProjection = app.Services.GetRequiredService<CampaignProjection>();
+
+        // Character events
+        eventBus.Subscribe<CharacterCreated>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<CharacterUpdated>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<CharacterDamageTaken>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<CharacterHealed>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<TemporaryHitPointsSet>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<ExperienceGained>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<CharacterLevelUp>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<AbilityScoreSet>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<SkillProficiencyAdded>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<SkillProficiencyRemoved>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<SavingThrowProficiencyAdded>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<SavingThrowProficiencyRemoved>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<RaceChosen>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<ClassChosen>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<BackgroundChosen>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<FeatAdded>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<FeatRemoved>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<SpellAdded>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<SpellRemoved>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<SpellSlotUsed>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<SpellSlotsRestored>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<ConditionApplied>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<ConditionRemoved>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<AllConditionsCleared>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<ArmorClassUpdated>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<SpeedUpdated>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<ResistanceAdded>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<ResistanceRemoved>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<VulnerabilityAdded>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<VulnerabilityRemoved>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<ImmunityAdded>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<ImmunityRemoved>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<DeathSavingThrowSuccess>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<DeathSavingThrowFailure>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<CharacterStabilized>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<CharacterDied>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<CharacterRevived>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<ItemEquipped>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<ItemUnequipped>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<InventoryItemAdded>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<InventoryItemRemoved>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<HitDieSpent>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<HitDiceRecovered>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<ConcentrationStarted>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<ConcentrationEnded>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<GoldAdded>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<GoldSpent>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<GoldSet>((e, ct) => { characterProjection.Apply(e); return Task.CompletedTask; });
+
+        // Combat events
+        eventBus.Subscribe<CombatStarted>((e, ct) => { combatProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<CombatEnded>((e, ct) => { combatProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<InitiativeRolled>((e, ct) => { combatProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<CombatRoundStarted>((e, ct) => { combatProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<CombatTurnStarted>((e, ct) => { combatProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<CombatTurnEnded>((e, ct) => { combatProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<CombatActionTaken>((e, ct) => { combatProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<CombatBonusActionTaken>((e, ct) => { combatProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<CombatReactionUsed>((e, ct) => { combatProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<CombatMovementUsed>((e, ct) => { combatProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<ConditionAppliedToCombatant>((e, ct) => { combatProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<ConditionRemovedFromCombatant>((e, ct) => { combatProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<CombatConcentrationStarted>((e, ct) => { combatProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<CombatConcentrationEnded>((e, ct) => { combatProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<ParticipantAddedToCombat>((e, ct) => { combatProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<ParticipantRemovedFromCombat>((e, ct) => { combatProjection.Apply(e); return Task.CompletedTask; });
+
+        // Campaign events
+        eventBus.Subscribe<CampaignCreated>((e, ct) => { campaignProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<QuestCreated>((e, ct) => { campaignProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<QuestAccepted>((e, ct) => { campaignProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<QuestCompleted>((e, ct) => { campaignProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<QuestFailed>((e, ct) => { campaignProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<QuestObjectiveUpdated>((e, ct) => { campaignProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<FactionDiscovered>((e, ct) => { campaignProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<FactionReputationChanged>((e, ct) => { campaignProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<GameTimeAdvanced>((e, ct) => { campaignProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<WeatherChanged>((e, ct) => { campaignProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<RegionDiscovered>((e, ct) => { campaignProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<GlobalFlagSet>((e, ct) => { campaignProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<GlobalFlagRemoved>((e, ct) => { campaignProjection.Apply(e); return Task.CompletedTask; });
+        eventBus.Subscribe<WorldEventTriggered>((e, ct) => { campaignProjection.Apply(e); return Task.CompletedTask; });
+
+        Console.WriteLine("[LOG] Проекции подписаны на события");
 
         // ============================================================
         // 12. Middleware

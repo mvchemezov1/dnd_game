@@ -1,6 +1,5 @@
 // infrastructure/ai/monster_ai.cs
 using dnd_game.Application.Projections;
-using dnd_game.Application.Projections.MaterializedViews;
 using dnd_game.Application.Services;        // для CombatService и др., если нужно
 using dnd_game.Domain.Aggregates;
 using dnd_game.Domain.Rules;

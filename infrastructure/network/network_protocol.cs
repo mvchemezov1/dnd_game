@@ -36,7 +36,9 @@ namespace dnd_game.Infrastructure.Network
         UndoRequest = 12,
         RedoRequest = 13,
         UndoResponse = 14,
-        RedoResponse = 15
+        RedoResponse = 15,
+        Chat = 20,
+        ChatResponse = 21
     }
 
     /// <summary>
@@ -206,6 +208,32 @@ namespace dnd_game.Infrastructure.Network
         public bool Success { get; set; }
         public string? ErrorMessage { get; set; }
         public string? ResultJson { get; set; }   // JSON-сериализованный результат запроса
+        public string? CorrelationId { get; set; }
+    }
+
+    public class ChatNetworkMessage : INetworkMessage
+    {
+        public MessageType Type => MessageType.Chat;
+        public string? CorrelationId { get; set; }
+        public string Message { get; set; } = string.Empty;
+    }
+
+    public class ChatResponseNetworkMessage : INetworkMessage
+    {
+        public MessageType Type => MessageType.ChatResponse;
+        public string? CorrelationId { get; set; }
+        public string Payload { get; set; } = string.Empty;
+    }
+
+    public class PingMessage : INetworkMessage
+    {
+        public MessageType Type => MessageType.Ping;
+        public string? CorrelationId { get; set; }
+    }
+
+    public class PongMessage : INetworkMessage
+    {
+        public MessageType Type => MessageType.Pong;
         public string? CorrelationId { get; set; }
     }
 

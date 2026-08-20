@@ -46,6 +46,12 @@ namespace dnd_game.Presentation.Api
         [HttpPost]
         public async Task<IActionResult> CreateCharacter([FromBody] CreateCharacter command)
         {
+            // Если ID не указан или пустой – генерируем новый
+            if (command.CharacterId == Guid.Empty)
+            {
+                command = command with { CharacterId = Guid.NewGuid() };
+                Console.WriteLine($"[LOG] Generated new CharacterId: {command.CharacterId}");
+            }
             await _commandBus.SendAsync(command, CreateContext());
             return Ok();
         }

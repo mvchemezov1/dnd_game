@@ -1,8 +1,9 @@
-// infrastructure/event_store/postgres_event_store.cs
+п»ї// infrastructure/event_store/postgres_event_store.cs
 using dnd_game.Domain.Aggregates;
 using dnd_game.Domain.Events;
 using dnd_game.Domain.Exceptions;
 using dnd_game.Infrastructure.EventStore;
+using dnd_game.Infrastructure.MessageBus;
 using dnd_game.Infrastructure.Monitoring;
 using Npgsql;
 using NpgsqlTypes;
@@ -17,14 +18,16 @@ public class PostgresEventStore : IEventStore
     private readonly IConsistencyManager _consistencyManager;
     private readonly ILogger<PostgresEventStore> _logger;
     private readonly IMetricsCollector _metrics;
+    private readonly IEventBus _eventBus;
 
-    public PostgresEventStore(string connectionString, ISnapshotStore snapshotStore, IConsistencyManager consistencyManager, ILogger<PostgresEventStore> logger, IMetricsCollector metrics)
+    public PostgresEventStore(string connectionString, ISnapshotStore snapshotStore, IConsistencyManager consistencyManager, ILogger<PostgresEventStore> logger, IMetricsCollector metrics, IEventBus eventBus)
     {
         _connectionString = connectionString;
         _snapshotStore = snapshotStore;
         _consistencyManager = consistencyManager;
         _logger = logger;
         _metrics = metrics;
+        _eventBus = eventBus;
         //InitializeDatabase();
     }
 
@@ -56,7 +59,7 @@ public class PostgresEventStore : IEventStore
                 PRIMARY KEY (aggregate_id, version)
             );
 
-            -- Проверка и добавление столбца session_id, если его нет
+            -- пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ session_id, пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅ
                     DO $$
                     BEGIN
                         IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
@@ -73,21 +76,21 @@ public class PostgresEventStore : IEventStore
         cmd.ExecuteNonQuery();
     }*/
 
-    // ---------- Сохранение (базовое и с метаданными) ----------
+    // ---------- пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ) ----------
 
     public async Task Save<T>(T aggregate) where T : AggregateRoot, new()
     {
-        // Формируем дефолтные метаданные (UserId и GameSessionId – заглушки)
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (UserId пїЅ GameSessionId пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
         var metadata = new EventMetadata
         {
-            UserId = Guid.Empty,    // должен пробрасываться из контекста
+            UserId = Guid.Empty,    // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
             GameSessionId = Guid.Empty
         };
         await SaveWithMetadata(aggregate, metadata);
     }
 
     // infrastructure/event_store/postgres_event_store.cs
-    // Сохранение с использованием ConsistencyManager
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ ConsistencyManager
     public async Task SaveWithMetadata<T>(T aggregate, EventMetadata metadataTemplate) where T : AggregateRoot, new()
     {
         const int maxRetries = 3;
@@ -96,7 +99,7 @@ public class PostgresEventStore : IEventStore
         {
             try
             {
-                // Проверяем согласованность через ConsistencyManager
+                // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ ConsistencyManager
                 var consistencyResult = await _consistencyManager.EnforceConsistencyAsync(
                     aggregate,
                     aggregate.OriginalVersion,
@@ -114,9 +117,9 @@ public class PostgresEventStore : IEventStore
                     };
                 }
 
-                // Сохраняем события
+                // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
                 await SaveInternal(aggregate, metadataTemplate);
-                return; // успех
+                return; // пїЅпїЅпїЅпїЅпїЅ
             }
             catch (StateConflictException) when (attempt < maxRetries)
             {
@@ -138,9 +141,9 @@ public class PostgresEventStore : IEventStore
         }
     }
 
-    // ---------- Загрузка ----------
+    // ---------- пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ ----------
 
-        // Загрузка агрегата с использованием EventStream и снапшотов
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ EventStream пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     public async Task<T?> Load<T>(Guid aggregateId) where T : AggregateRoot, new()
     {
         var snapshot = await _snapshotStore.GetLatestSnapshotAsync(aggregateId, int.MaxValue);
@@ -151,7 +154,7 @@ public class PostgresEventStore : IEventStore
             aggregate = SnapshotStore.RestoreAggregateFromSnapshot<T>(snapshot);
         }
 
-        // Загружаем события после версии снапшота (или с 0)
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅ пїЅ 0)
         int fromVersion = snapshot?.Version ?? 0;
         var stream = await GetEventStreamAsync(aggregateId, new ReadStreamOptions { FromVersion = fromVersion });
         var domainEvents = stream?.Events.Select(e => e.DomainEvent) ?? Enumerable.Empty<IDomainEvent>();
@@ -163,22 +166,22 @@ public class PostgresEventStore : IEventStore
         }
         else
         {
-            // Применяем события к восстановленному агрегату
+            // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
             foreach (var ev in domainEvents)
             {
                 aggregate.ApplyChange(ev);
             }
         }
 
-        // Устанавливаем версию (она уже увеличена при ApplyChange)
-        // Но нужно синхронизировать с OriginalVersion для блокировки
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ ApplyChange)
+        // пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ OriginalVersion пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         aggregate.SetVersion(aggregate.Version);
         return aggregate;
     }
 
     public async Task<T?> LoadWithMetadata<T>(Guid aggregateId) where T : AggregateRoot, new()
     {
-        return await Load<T>(aggregateId); // метаданные можно использовать отдельно
+        return await Load<T>(aggregateId); // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     }
 
     async Task<IEnumerable<StoredEvent>> IEventStore.GetEventStreamAsync(Guid aggregateId, ReadStreamOptions? options)
@@ -264,7 +267,7 @@ public class PostgresEventStore : IEventStore
         } : null;
     }
 
-    // ---------- Снапшоты ----------
+    // ---------- пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ ----------
 
     public async Task SaveSnapshotAsync(Snapshot snapshot)
     {
@@ -307,7 +310,7 @@ public class PostgresEventStore : IEventStore
         return null;
     }
 
-    // ---------- Глобальные запросы ----------
+    // ---------- пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ ----------
 
     public async Task<IEnumerable<StoredEvent>> GetEventsByTypeAsync(string eventType, DateTime? from = null, DateTime? to = null, int? maxCount = null)
     {
@@ -331,13 +334,13 @@ public class PostgresEventStore : IEventStore
         await using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
-            // ... аналогичное чтение
+            // ... пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
             result.Add(ReadStoredEvent(reader));
         }
         return result;
     }
 
-    // Внутренний метод сохранения (транзакция)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
     private async Task SaveInternal<T>(
     T aggregate,
     EventMetadata metadataTemplate,
@@ -351,7 +354,7 @@ public class PostgresEventStore : IEventStore
         await conn.OpenAsync(cancellationToken);
         using var tx = await conn.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted, cancellationToken);
 
-        // Блокировка строки агрегата (FOR UPDATE)
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (FOR UPDATE)
         using var lockCmd = new NpgsqlCommand(@"
         SELECT version FROM events
         WHERE aggregate_id = @aggId
@@ -362,7 +365,7 @@ public class PostgresEventStore : IEventStore
         var result = await lockCmd.ExecuteScalarAsync(cancellationToken);
         int currentMaxVersion = result as int? ?? 0;
 
-        // Проверка версии (ConsistencyManager уже сделал это, но перепроверим)
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ (ConsistencyManager пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ, пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
         if (aggregate.OriginalVersion != currentMaxVersion)
         {
             _logger.LogWarning(
@@ -414,7 +417,7 @@ public class PostgresEventStore : IEventStore
             {
                 await cmd.ExecuteNonQueryAsync(cancellationToken);
             }
-            catch (PostgresException ex) when (ex.SqlState == "23505") // уникальное ограничение
+            catch (PostgresException ex) when (ex.SqlState == "23505") // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
             {
                 await tx.RollbackAsync(cancellationToken);
                 _logger.LogWarning(
@@ -429,11 +432,34 @@ public class PostgresEventStore : IEventStore
 
         await tx.CommitAsync(cancellationToken);
 
-        // Обновляем версию агрегата и очищаем несохранённые события
+        // РџСѓР±Р»РёРєСѓРµРј СЃРѕС…СЂР°РЅС‘РЅРЅС‹Рµ СЃРѕР±С‹С‚РёСЏ РІ С€РёРЅСѓ вЂ” Р±РµР· СЌС‚РѕРіРѕ РїСЂРѕРµРєС†РёРё (СЃРїРёСЃРєРё
+        // РїРµСЂСЃРѕРЅР°Р¶РµР№ Рё С‚.Рґ.), СЃР°РіРё (TradeSaga/QuestSaga/CombatSaga) Рё WebSocket-
+        // СѓРІРµРґРѕРјР»РµРЅРёСЏ РёРіСЂРѕРєР°Рј РЅРёРєРѕРіРґР° РЅРµ СѓР·РЅР°СЋС‚ Рѕ РЅРѕРІС‹С… СЃРѕР±С‹С‚РёСЏС…, С…РѕС‚СЏ РѕРЅРё С‡РµСЃС‚РЅРѕ
+        // СЃРѕС…СЂР°РЅРµРЅС‹ РІ Postgres. РџСѓР±Р»РёРєСѓРµРј С‚РѕР»СЊРєРѕ РџРћРЎР›Р• СѓСЃРїРµС€РЅРѕРіРѕ РєРѕРјРјРёС‚Р° вЂ” СЃРѕР±С‹С‚РёРµ
+        // РЅРµ РјРѕР¶РµС‚ СЃС‡РёС‚Р°С‚СЊСЃСЏ СЃР»СѓС‡РёРІС€РёРјСЃСЏ, РїРѕРєР° РЅРµ СЃРѕС…СЂР°РЅРµРЅРѕ РЅР°РґС‘Р¶РЅРѕ.
+        foreach (var domainEvent in events)
+        {
+            try
+            {
+                await _eventBus.PublishAsync(domainEvent, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                // РЎРѕР±С‹С‚РёРµ СѓР¶Рµ РЅР°РґС‘Р¶РЅРѕ СЃРѕС…СЂР°РЅРµРЅРѕ РІ Postgres вЂ” СЃР±РѕР№ Сѓ РѕРґРЅРѕРіРѕ
+                // РїРѕРґРїРёСЃС‡РёРєР° (РЅР°РїСЂРёРјРµСЂ, РІ РїСЂРѕРµРєС†РёРё) РЅРµ РґРѕР»Р¶РµРЅ РѕС‚РєР°С‚С‹РІР°С‚СЊ СѓР¶Рµ
+                // РїРѕРґС‚РІРµСЂР¶РґС‘РЅРЅСѓСЋ Р·Р°РїРёСЃСЊ. Р›РѕРіРёСЂСѓРµРј Рё РїСЂРѕРґРѕР»Р¶Р°РµРј: РїСЂРѕРµРєС†РёСЏ РјРѕР¶РµС‚
+                // РѕС‚СЃС‚Р°С‚СЊ, РЅРѕ СЌС‚Рѕ Р»СѓС‡С€Рµ, С‡РµРј РїРѕС‚РµСЂСЏС‚СЊ РґР°РЅРЅС‹Рµ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ РёР·-Р·Р°
+                // РѕС€РёР±РєРё РІ РЅРµСЂРѕРґСЃС‚РІРµРЅРЅРѕРј РєРѕРґРµ РїРѕРґРїРёСЃС‡РёРєР°.
+                _logger.LogError(ex, "Failed to publish event {EventType} for aggregate {AggregateId} after commit",
+                    domainEvent.GetType().Name, aggregate.Id);
+            }
+        }
+
+        // РћР±РЅРѕРІР»СЏРµРј РІРµСЂСЃРёСЋ Р°РіСЂРµРіР°С‚Р° Рё РѕС‡РёС‰Р°РµРј СЃРїРёСЃРѕРє РЅРµСЃРѕС…СЂР°РЅС‘РЅРЅС‹С… СЃРѕР±С‹С‚РёР№
         aggregate.SetVersion(nextVersion - 1);
         aggregate.ClearUncommittedEvents();
 
-        // Создание снапшота, если нужно
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
         if (await _snapshotStore.ShouldCreateSnapshotAsync(aggregate.Id, aggregate.Version))
         {
             var snapshot = SnapshotStore.CreateSnapshotFromAggregate(aggregate);
@@ -474,16 +500,16 @@ public class PostgresEventStore : IEventStore
         };
     }
 
-    // ---------- Подписки (заглушка) ----------
+    // ---------- пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ) ----------
 
     public async Task SubscribeAsync(Func<StoredEvent, CancellationToken, Task> handler, CancellationToken cancellationToken = default)
     {
-        // Для Postgres можно использовать LISTEN/NOTIFY или периодический поллинг.
-        // Заглушка: реализация не требуется для базового функционала.
+        // пїЅпїЅпїЅ Postgres пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ LISTEN/NOTIFY пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ.
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ: пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ.
         await Task.CompletedTask;
     }
 
-    // ---------- Устаревшие методы (сохранены для обратной совместимости) ----------
+    // ---------- пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ) ----------
     public async Task<IEnumerable<object>> GetEvents(Guid aggregateId, int fromVersion = 0)
     {
         var stream = await GetEventStreamAsync(aggregateId, new ReadStreamOptions { FromVersion = fromVersion });
@@ -512,7 +538,7 @@ public class PostgresEventStore : IEventStore
         return events;
     }
 
-    // ---------- Вспомогательный метод ----------
+    // ---------- пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ ----------
     private static StoredEvent ReadStoredEvent(NpgsqlDataReader reader)
     {
         var eventId = reader.GetGuid(0);

@@ -1,7 +1,6 @@
 // infrastructure/ai/npc_behavior_tree.cs
 using dnd_game.Domain.Commands;
 using dnd_game.Application.Projections;
-using dnd_game.Application.Projections.MaterializedViews;
 using dnd_game.Infrastructure.AI;
 using System.Collections.Concurrent;
 using dnd_game.infrastructure.message_bus;

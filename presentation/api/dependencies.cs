@@ -114,7 +114,8 @@ public static class Dependencies
             var consistencyManager = sp.GetRequiredService<IConsistencyManager>();
             var logger = sp.GetRequiredService<ILogger<PostgresEventStore>>();
             var metrics = sp.GetRequiredService<IMetricsCollector>();
-            return new PostgresEventStore(connString, snapshotStore, consistencyManager, logger, metrics);
+            var eventBus = sp.GetRequiredService<IEventBus>();
+            return new PostgresEventStore(connString, snapshotStore, consistencyManager, logger, metrics, eventBus);
         });
 
         // =====================================================================

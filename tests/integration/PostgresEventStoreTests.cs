@@ -3,6 +3,7 @@ using dnd_game.Domain.Aggregates;
 using dnd_game.infrastructure.event_store;
 using dnd_game.Infrastructure.Coordination;
 using dnd_game.Infrastructure.EventStore;
+using dnd_game.Infrastructure.MessageBus;
 using dnd_game.Infrastructure.Monitoring;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -51,13 +52,15 @@ namespace dnd_game.Tests.Integration
             // Для PostgresEventStore тоже нужны логгер и метрики
             var storeLoggerMock = new Mock<ILogger<PostgresEventStore>>();
             var storeMetricsMock = new Mock<IMetricsCollector>();
+            var eventBusMock = new Mock<IEventBus>();
 
             var store = new PostgresEventStore(
                 ConnectionString!,
                 snapshots,
                 consistencyManager,
                 storeLoggerMock.Object,
-                storeMetricsMock.Object);
+                storeMetricsMock.Object,
+                eventBusMock.Object);
 
             return (store, snapshots);
         }

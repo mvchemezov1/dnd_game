@@ -98,16 +98,23 @@ public interface ICompensatableCommand : ICommand
 /// </summary>
 public abstract record BaseCommand : IGameCommand, IIdempotentCommand
 {
+    /// <summary>Идентификатор пользователя, отправившего команду.</summary>
     public Guid UserId { get; init; }
+
+    /// <summary>Идентификатор игровой сессии (кампании).</summary>
     public Guid GameSessionId { get; init; }
+
+    /// <summary>Уникальный ключ идемпотентности (по умолчанию генерируется новый GUID).</summary>
     public Guid IdempotencyKey { get; init; } = Guid.NewGuid();
 }
 
 /// <summary>
 /// Базовый класс для команд, адресованных конкретному агрегату.
+/// Наследует <see cref="BaseCommand"/> и добавляет идентификатор целевого агрегата.
 /// </summary>
 public abstract record AggregateCommand : BaseCommand, IAggregateCommand
 {
+    /// <summary>Идентификатор агрегата, которому адресована команда.</summary>
     public Guid AggregateId { get; init; }
 }
 
@@ -115,7 +122,18 @@ public abstract record AggregateCommand : BaseCommand, IAggregateCommand
 // Обработчик команд (оставлен без изменений)
 // --------------------------------------------------------------------------------------------
 
+/// <summary>
+/// Контракт обработчика команды. Реализуется классами, которые выполняют бизнес-логику
+/// для конкретного типа команды.
+/// </summary>
+/// <typeparam name="TCommand">Тип команды, наследующий <see cref="ICommand"/>.</typeparam>
 public interface ICommandHandler<in TCommand> where TCommand : ICommand
 {
+    /// <summary>
+    /// Обрабатывает команду.
+    /// </summary>
+    /// <param name="command">Команда для обработки.</param>
+    /// <param name="cancellationToken">Токен отмены операции.</param>
+    /// <returns>Задача, представляющая асинхронную операцию.</returns>
     Task Handle(TCommand command, CancellationToken cancellationToken = default);
 }

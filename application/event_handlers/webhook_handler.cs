@@ -163,7 +163,7 @@ namespace dnd_game.Application.EventHandlers
                 ["data"] = @event
             };
             // ���������� �������������� ����� ��� ���������� �������:
-            if (@event is ICharacterEvent charEvent)
+            if (@event is Domain.Events.ICharacterEvent charEvent)
             {
                 result["characterId"] = charEvent.CharacterId;
             }

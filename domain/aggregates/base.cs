@@ -9,7 +9,11 @@ namespace dnd_game.Domain.Aggregates
     /// </summary>
     public abstract class AggregateRoot
     {
-        private readonly List<IDomainEvent> _uncommittedEvents = []; // вместо new List<IDomainEvent>()
+        /// <summary>
+        /// Список событий, которые были применены к агрегату, но ещё не сохранены в EventStore.
+        /// Используется для сохранения изменений после выполнения команд.
+        /// </summary>
+        private readonly List<IDomainEvent> _uncommittedEvents = [];
 
         /// <summary>Идентификатор агрегата.</summary>
         public Guid Id { get; protected set; }
@@ -26,6 +30,7 @@ namespace dnd_game.Domain.Aggregates
         /// <summary>
         /// Установить версию агрегата (вызывается EventStore при загрузке).
         /// </summary>
+        /// <param name="version">Номер версии, с которой загружен агрегат.</param>
         public void SetVersion(int version)
         {
             Version = version;
@@ -40,6 +45,7 @@ namespace dnd_game.Domain.Aggregates
         /// Применить событие к агрегату: обновляет состояние, добавляет в список несохранённых.
         /// После применения вызывает проверку инвариантов.
         /// </summary>
+        /// <param name="event">Событие предметной области, которое нужно применить.</param>
         public void ApplyChange(IDomainEvent @event)
         {
             ApplyEvent(@event);
@@ -52,6 +58,7 @@ namespace dnd_game.Domain.Aggregates
         /// Абстрактный метод, реализующий мутацию состояния для конкретного типа события.
         /// Вызывается как при первоначальном применении, так и при восстановлении из истории.
         /// </summary>
+        /// <param name="event">Событие, на основе которого изменяется состояние агрегата.</param>
         protected abstract void ApplyEvent(IDomainEvent @event);
 
         /// <summary>
@@ -61,6 +68,9 @@ namespace dnd_game.Domain.Aggregates
         /// - уровень персонажа не превышает 20,
         /// - количество использованных ячеек заклинаний не превышает максимума.
         /// </summary>
+        /// <remarks>
+        /// Базовая реализация пустая – конкретные агрегаты добавляют свои проверки.
+        /// </remarks>
         public virtual void EnsureInvariants()
         {
             // Базовая реализация пустая – конкретные агрегаты добавляют свои проверки.
@@ -74,6 +84,7 @@ namespace dnd_game.Domain.Aggregates
         /// Восстановить состояние агрегата из списка событий (при загрузке из EventStore).
         /// После восстановления также проверяются инварианты.
         /// </summary>
+        /// <param name="history">Последовательность событий, воспроизводящих состояние агрегата.</param>
         public void LoadFromHistory(IEnumerable<IDomainEvent> history)
         {
             foreach (var @event in history)
@@ -89,10 +100,15 @@ namespace dnd_game.Domain.Aggregates
         // Работа с несохранёнными событиями
         // --------------------------------------------------------------------------------------------
 
-        /// <summary>Получить список событий, которые ещё не были сохранены в EventStore.</summary>
+        /// <summary>
+        /// Получить список событий, которые ещё не были сохранены в EventStore.
+        /// </summary>
+        /// <returns>Перечисление несохранённых событий.</returns>
         public IEnumerable<IDomainEvent> GetUncommittedEvents() => _uncommittedEvents;
 
-        /// <summary>Очистить список несохранённых событий (вызывается после успешного сохранения).</summary>
+        /// <summary>
+        /// Очистить список несохранённых событий (вызывается после успешного сохранения).
+        /// </summary>
         public void ClearUncommittedEvents()
         {
             _uncommittedEvents.Clear();
@@ -107,19 +123,24 @@ namespace dnd_game.Domain.Aggregates
         /// Удобный метод для проверки, что агрегат не был изменён с момента загрузки (оптимистическая блокировка).
         /// Используется при сохранении, чтобы предотвратить конфликты.
         /// </summary>
+        /// <param name="expectedVersion">Ожидаемая версия агрегата на момент сохранения.</param>
+        /// <returns><c>true</c>, если версия при загрузке отличается от ожидаемой (конфликт).</returns>
         public bool HasConcurrencyConflict(int expectedVersion)
         {
             return OriginalVersion != expectedVersion;
         }
 
         /// <summary>
-        /// Пометить агрегат как удалённый (например, персонаж окончательно мёртв и не может использоваться).
+        /// Признак, помечающий агрегат как удалённый (например, персонаж окончательно мёртв и не может использоваться).
         /// </summary>
         public bool IsDeleted { get; private set; }
 
         /// <summary>
-        /// Удалить агрегат (применяет событие удаления, если оно поддерживается).
+        /// Удалить агрегат (применяет событие удаления и помечает агрегат как удалённый).
         /// </summary>
+        /// <remarks>
+        /// Метод защищён, чтобы удаление могли инициировать только наследники, контролируя условия.
+        /// </remarks>
         protected void MarkAsDeleted()
         {
             var @event = new AggregateDeleted(Id);
@@ -127,9 +148,12 @@ namespace dnd_game.Domain.Aggregates
             IsDeleted = true;
         }
 
-        // Пример вложенного события удаления (для внутреннего использования)
+        /// <summary>
+        /// Вложенное событие удаления агрегата, используемое для внутренних целей.
+        /// </summary>
         public class AggregateDeleted(Guid aggregateId) : IDomainEvent
         {
+            /// <summary>Идентификатор удалённого агрегата.</summary>
             public Guid AggregateId { get; } = aggregateId;
         }
     }

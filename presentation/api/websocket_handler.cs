@@ -285,7 +285,7 @@ namespace dnd_game.Presentation.Api
 
                 state.LastMessageAt = DateTime.UtcNow;
 
-                // Limit messages per connection: protects against a WebSocket message flood (DDoS vector).
+                // Лимит сообщений
                 var rateLimitClientId = state.UserId ?? state.ConnectionId;
                 if (!_rateLimiter.IsAllowed(rateLimitClientId, "websocket-message"))
                 {
@@ -293,9 +293,51 @@ namespace dnd_game.Presentation.Api
                     continue;
                 }
 
-                // Десериализация
-                var networkMsg = DecodeMessage(rawMessage);
-                if (networkMsg == null) continue;
+                // Пытаемся декодировать как JSON
+                INetworkMessage? networkMsg = null;
+                try
+                {
+                    var json = Encoding.UTF8.GetString(rawMessage);
+                    using var doc = JsonDocument.Parse(json);
+                    var root = doc.RootElement;
+                    if (root.TryGetProperty("type", out var typeElement))
+                    {
+                        var type = typeElement.GetString();
+                        networkMsg = type switch
+                        {
+                            "command" => JsonSerializer.Deserialize<CommandNetworkMessage>(json),
+                            "query" => JsonSerializer.Deserialize<QueryNetworkMessage>(json),
+                            "ping" => JsonSerializer.Deserialize<Infrastructure.Network.PingMessage>(json),
+                            "undo_request" => JsonSerializer.Deserialize<UndoNetworkMessage>(json),
+                            "redo_request" => JsonSerializer.Deserialize<RedoNetworkMessage>(json),
+                            "chat" => JsonSerializer.Deserialize<ChatNetworkMessage>(json),
+                            _ => null
+                        };
+                        if (networkMsg == null)
+                        {
+                            _logger.LogWarning("Unknown message type: {Type}", type);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to decode JSON message: {Raw}", Encoding.UTF8.GetString(rawMessage));
+                }
+
+                // Если не JSON – пробуем бинарный протокол
+                if (networkMsg == null)
+                {
+                    var decoded = _protocol.Decode(rawMessage);
+                    networkMsg = decoded.FirstOrDefault();
+                }
+
+                if (networkMsg == null)
+                {
+                    _logger.LogWarning("Failed to decode message: {Raw}", Encoding.UTF8.GetString(rawMessage));
+                    continue;
+                }
+
+                _logger.LogDebug("Received message type: {Type}", networkMsg.Type);
 
                 using var span = _tracer.StartSpan("WebSocket.Message");
                 _tracer.SetTag("connection.id", state.ConnectionId.ToString());
@@ -467,17 +509,16 @@ namespace dnd_game.Presentation.Api
         // ---------- Обработка входящих сообщений ----------
         private async Task DispatchMessageAsync(WebSocketConnectionState state, INetworkMessage networkMsg)
         {
+            _logger.LogDebug("Dispatching message type: {Type}", networkMsg.Type);
             switch (networkMsg)
             {
                 case CommandNetworkMessage cmd:
                     await HandleCommand(state, cmd);
                     break;
-
                 case QueryNetworkMessage query:
                     await HandleQuery(state, query);
                     break;
-
-                case PingMessage ping:
+                case Infrastructure.Network.PingMessage ping:
                     await SendMessageAsync(state, new PongMessage());
                     break;
                 case UndoNetworkMessage undo:
@@ -486,8 +527,15 @@ namespace dnd_game.Presentation.Api
                 case RedoNetworkMessage redo:
                     await HandleRedo(state, redo);
                     break;
-
+                case ChatNetworkMessage chat:
+                    await SendMessageAsync(state, new ChatResponseNetworkMessage
+                    {
+                        Payload = "Echo: " + chat.Message,
+                        CorrelationId = chat.CorrelationId
+                    });
+                    break;
                 default:
+                    _logger.LogWarning("Unknown message type: {Type}", networkMsg.Type);
                     await SendMessageAsync(state, new ErrorNetworkMessage
                     {
                         ErrorCode = "UNKNOWN_TYPE",
@@ -591,19 +639,16 @@ namespace dnd_game.Presentation.Api
             try
             {
                 await _commandBus.SendAsync(commandObj, context);
-                // Если команда поддерживает отмену, регистрируем её в UndoManager
                 if (commandObj is IUndoableAction undoableAction)
                 {
                     await _undoManager.RecordActionAsync(undoableAction);
                 }
-                await SendMessageAsync(state, new CommandResponseNetworkMessage
-                {
-                    Success = true,
-                    CorrelationId = msg.CorrelationId
-                });
+                _logger.LogInformation("Command {CommandType} executed successfully", commandType.Name);
+                await SendMessageAsync(state, new CommandResponseNetworkMessage { Success = true, CorrelationId = msg.CorrelationId });
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Command {CommandType} failed", commandType.Name);
                 await SendMessageAsync(state, NetworkMessageFactory.CreateError("COMMAND_FAILED", ex.Message, correlationId: msg.CorrelationId));
             }
         }

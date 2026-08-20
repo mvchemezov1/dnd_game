@@ -196,9 +196,16 @@
                     if (!text) return;
                     try {
                         const cmd = JSON.parse(text);
-                        wsClient.sendCommand(cmd.commandType, cmd.commandJson, cmd.correlationId);
+                        if (cmd.commandType && cmd.commandJson) {
+                            wsClient.sendCommand(cmd.commandType, cmd.commandJson, cmd.correlationId);
+                        } else {
+                            // Если нет commandType – пробуем отправить как команду с самим объектом
+                            wsClient.send({ type: 'command', payload: cmd });
+                        }
                     } catch (e) {
-                        wsClient.send({ type: 'chat', payload: { message: text } });
+                        // Если не JSON – показываем ошибку, а не отправляем чат
+                        showToast('Введите JSON команду', 'warning');
+                        log('❌ Неверный формат: ' + text);
                     }
                     input.value = '';
                 });
